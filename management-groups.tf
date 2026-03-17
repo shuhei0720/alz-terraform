@@ -101,6 +101,24 @@ resource "azurerm_management_group" "decommissioned" {
   depends_on                 = [time_sleep.wait_for_root_mg]
 }
 
+# RBAC 継承がすべての子 MG に伝播するまで待機
+resource "time_sleep" "wait_for_mg_rbac" {
+  depends_on = [
+    azurerm_management_group.root,
+    azurerm_management_group.platform,
+    azurerm_management_group.management,
+    azurerm_management_group.connectivity,
+    azurerm_management_group.identity,
+    azurerm_management_group.security,
+    azurerm_management_group.landing_zones,
+    azurerm_management_group.corp,
+    azurerm_management_group.online,
+    azurerm_management_group.sandbox,
+    azurerm_management_group.decommissioned,
+  ]
+  create_duration = "120s"
+}
+
 # =============================================================================
 # Subscription → Management Group Association
 # =============================================================================
