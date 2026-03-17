@@ -27,7 +27,6 @@ jobs:
   deploy:
     name: Plan & Apply
     runs-on: ubuntu-latest
-    environment: azure
     if: github.event.inputs.action != 'destroy'
 
     steps:
@@ -48,15 +47,14 @@ jobs:
             -backend-config="key=alz.terraform.tfstate"
 
       - name: Terraform Plan
-        run: terraform plan -no-color -input=false -out=tfplan
+        run: terraform plan -no-color -input=false -lock-timeout=60m -out=tfplan
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false tfplan
+        run: terraform apply -auto-approve -input=false -lock-timeout=60m tfplan
 
   destroy:
     name: Plan Destroy & Apply
     runs-on: ubuntu-latest
-    environment: azure
     if: github.event.inputs.action == 'destroy'
 
     steps:
@@ -77,7 +75,7 @@ jobs:
             -backend-config="key=alz.terraform.tfstate"
 
       - name: Terraform Plan Destroy
-        run: terraform plan -destroy -no-color -input=false -out=tfplan
+        run: terraform plan -destroy -no-color -input=false -lock-timeout=60m -out=tfplan
 
       - name: Terraform Destroy
-        run: terraform apply -auto-approve -input=false tfplan
+        run: terraform apply -auto-approve -input=false -lock-timeout=60m tfplan
