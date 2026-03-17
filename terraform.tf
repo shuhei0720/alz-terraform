@@ -24,9 +24,10 @@ terraform {
     }
   }
 
-  # テストデプロイ時はコメントアウトしてローカル state を使用
-  # 本番ではコメントを外して backend を有効化してください
-  # backend "azurerm" {}
+  # リモート state backend（Azure Storage）
+  backend "azurerm" {
+    use_oidc = true
+  }
 }
 
 # =============================================================================
