@@ -271,11 +271,7 @@ resource "azapi_resource" "alz_policy_definitions" {
   }
   response_export_values = []
 
-  depends_on = [
-    azurerm_management_group.root,
-    azurerm_management_group.platform,
-    azurerm_management_group.landing_zones,
-  ]
+  depends_on = [time_sleep.wait_for_mg_rbac]
 }
 
 # =============================================================================
