@@ -43,7 +43,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -no-color -input=false 2>&1 | tee plan_output.txt
+          terraform plan -no-color -input=false -lock-timeout=60m 2>&1 | tee plan_output.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
