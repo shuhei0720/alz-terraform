@@ -1,0 +1,53 @@
+# =============================================================================
+# Online サブスクリプションテンプレート
+# インターネット公開アプリケーション用（Online 管理グループ配置）
+# =============================================================================
+#
+# 使い方:
+#   1. このファイルを subscriptions/ にコピー
+#   2. ファイル名を任意の名前に変更（例: public-web.yaml）
+#   3. <...> のプレースホルダーをすべて書き換え
+#   4. terraform plan で確認、terraform apply で適用
+#
+#   ※ provider や module ブロックの追加は不要です（azapi で自動処理）
+#
+# 特徴:
+#   - Online 管理グループ配置 → インターネット公開向けポリシーが適用される
+#   - Hub ピアリング有効 → Azure Firewall 経由で外部通信を制御
+#   - オンプレ接続不要 → use_hub_gateway: false
+#   - BGP 伝搬無効のルートテーブル → オンプレルートを学習しない
+# =============================================================================
+
+display_name: "<サブスクリプション表示名>"
+subscription_id: "<サブスクリプション ID (GUID)>"
+workload_type: "Production"
+management_group_id: "online"
+location: "japaneast"
+
+tags:
+  environment: "<production|staging|development>"
+  cost_center: "<コストセンター番号>"
+  owner: "<所有チーム名>"
+  system_name: "<システム名>"
+
+resource_groups:
+  network:
+    name: "rg-<システム名>-network"
+    location: "japaneast"
+  application:
+    name: "rg-<システム名>-app"
+    location: "japaneast"
+
+virtual_network:
+  name: "vnet-<システム名>"
+  resource_group_name: "rg-<システム名>-network"
+  address_space: ["<例: 10.210.0.0/16>"]
+  hub_peering_enabled: true       # Hub ピアリング有効 → Firewall 経由で外部通信制御
+  use_hub_gateway: false          # オンプレ接続不要
+  subnets:
+    - name: "snet-frontend"
+      address_prefix: "<例: 10.210.1.0/24>"
+    - name: "snet-backend"
+      address_prefix: "<例: 10.210.2.0/24>"
+    - name: "snet-data"
+      address_prefix: "<例: 10.210.3.0/24>"

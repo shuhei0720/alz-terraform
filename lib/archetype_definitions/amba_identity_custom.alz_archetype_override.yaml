@@ -1,0 +1,21 @@
+# =============================================================================
+# AMBA identity archetype override
+# =============================================================================
+# AMBA の Identity 監視ポリシーを制御します。
+# =============================================================================
+
+base_archetype: amba_identity
+name: amba_identity_custom
+
+policy_assignments_to_add: []
+policy_assignments_to_remove: [
+# 除外する場合はコメントを外してください:
+  # Deploy-AMBA-Identity,
+]
+
+policy_definitions_to_add: []
+policy_definitions_to_remove: []
+policy_set_definitions_to_add: []
+policy_set_definitions_to_remove: []
+role_definitions_to_add: []
+role_definitions_to_remove: []

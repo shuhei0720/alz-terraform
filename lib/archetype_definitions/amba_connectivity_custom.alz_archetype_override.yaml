@@ -1,0 +1,22 @@
+# =============================================================================
+# AMBA connectivity archetype override
+# =============================================================================
+# AMBA の Connectivity 監視ポリシーを制御します。
+# =============================================================================
+
+base_archetype: amba_connectivity
+name: amba_connectivity_custom
+
+policy_assignments_to_add: []
+policy_assignments_to_remove: [
+# 除外する場合はコメントを外してください:
+  # Deploy-AMBA-Connectivity,
+  # Deploy-AMBAConnectivity2,
+]
+
+policy_definitions_to_add: []
+policy_definitions_to_remove: []
+policy_set_definitions_to_add: []
+policy_set_definitions_to_remove: []
+role_definitions_to_add: []
+role_definitions_to_remove: []

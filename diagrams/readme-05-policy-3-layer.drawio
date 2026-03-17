@@ -1,0 +1,201 @@
+<mxfile host="65bd71144e">
+    <diagram id="readme05" name="ポリシー 3層システム">
+        <mxGraphModel dx="1391" dy="636" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="850" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="ポリシー 3層アーキテクチャ" style="text;html=1;fontSize=18;fontStyle=1;align=center;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="35" width="340" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#0078D4;strokeWidth=3;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="70" width="340" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_title" value="Layer 1 — ALZ 標準ポリシー" style="text;html=1;fontSize=14;fontStyle=1;fontColor=#0078D4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="78" width="300" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_badge" value="alz provider" style="text;html=1;fontSize=9;fontStyle=1;fontColor=#FFF;align=center;fillColor=#0078D4;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="78" width="80" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_desc" value="Microsoft 公式 ALZ ライブラリが提供する&#xa;セキュリティ＆コンプライアンスベースライン" style="text;html=1;fontSize=9;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="104" width="300" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_item1" value="◆ Deny-Public-IP" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="140" width="200" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_item2" value="◆ Enforce-HTTPS" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="160" width="200" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_item3" value="◆ Require-Tag (CostCenter 等)" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="180" width="250" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_item4" value="◆ Allowed-Locations (Japan East / West)" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="200" width="280" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l1_count" value="~40 definitions" style="text;html=1;fontSize=9;fontColor=#0078D4;fontStyle=2;align=right;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="236" width="120" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=3;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="300" width="340" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_title" value="Layer 2 — AMBA 監視ポリシー" style="text;html=1;fontSize=14;fontStyle=1;fontColor=#F57F17;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="308" width="300" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_badge" value="azurerm" style="text;html=1;fontSize=9;fontStyle=1;fontColor=#FFF;align=center;fillColor=#F57F17;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="308" width="70" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_desc" value="Azure Monitor Baseline Alerts&#xa;自動アラート作成ポリシー群" style="text;html=1;fontSize=9;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="334" width="300" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_item1" value="◆ VM CPU / Memory Alert" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="370" width="250" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_item2" value="◆ Network Latency Alert" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="390" width="250" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_item3" value="◆ Storage / Disk Usage Alert" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="410" width="250" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_item4" value="◆ Service Health Notification" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="430" width="250" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l2_count" value="~30 definitions" style="text;html=1;fontSize=9;fontColor=#F57F17;fontStyle=2;align=right;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="456" width="120" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="510" width="340" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_title" value="Layer 3 — カスタムポリシー" style="text;html=1;fontSize=14;fontStyle=1;fontColor=#2E7D32;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="518" width="300" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_badge" value="lib/ フォルダ" style="text;html=1;fontSize=9;fontStyle=1;fontColor=#FFF;align=center;fillColor=#2E7D32;rounded=1;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="518" width="80" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_desc" value="組織固有ポリシー＆カスタム定義&#xa;lib/ ディレクトリで管理" style="text;html=1;fontSize=9;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="544" width="300" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_item1" value="◆ Deny-MgmtPort-FromInternet" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="580" width="280" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_item2" value="◆ Require-JapanEast-Only" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="600" width="280" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_item3" value="◆ Enforce-Naming-Convention" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="620" width="280" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_item4" value="◆ カスタム archetype 定義" style="text;html=1;fontSize=10;align=left;fontColor=#444;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="640" width="280" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="l3_count" value="拡張可能" style="text;html=1;fontSize=9;fontColor=#2E7D32;fontStyle=2;align=right;" parent="1" vertex="1">
+                    <mxGeometry x="310" y="668" width="80" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="arrow_merge1" style="strokeColor=#333;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.17;" parent="1" source="l1_box" target="merge_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arrow_merge2" style="strokeColor=#333;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="l2_box" target="merge_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arrow_merge3" style="strokeColor=#333;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.83;" parent="1" source="l3_box" target="merge_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#9673a6;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="250" width="200" height="260" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_title" value="マージ &amp; デプロイ" style="text;html=1;fontSize=13;fontStyle=1;fontColor=#7B1FA2;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="260" width="180" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_step1" value="1. lib/ から definition ロード" style="text;html=1;fontSize=9;fontColor=#333;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="545" y="295" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_step2" value="2. archetype で assignment 構成" style="text;html=1;fontSize=9;fontColor=#333;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="545" y="315" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_step3" value="3. alz provider が MG にバインド" style="text;html=1;fontSize=9;fontColor=#333;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="545" y="335" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_step4" value="4. AMBA は azurerm で直接割当" style="text;html=1;fontSize=9;fontColor=#333;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="545" y="355" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_step5" value="5. 重複排除 &amp; 優先度制御" style="text;html=1;fontSize=9;fontColor=#333;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="545" y="375" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="merge_down" style="strokeColor=#7B1FA2;strokeWidth=3;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="merge_box" edge="1" target="mg_target_box">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="630" y="540" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="mg_target_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#3F51B5;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="280" width="320" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_target_title" value="管理グループへのポリシー割当" style="text;html=1;fontSize=12;fontStyle=1;fontColor=#3F51B5;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="830" y="285" width="280" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_icon1" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="840" y="315" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_l1" value="ALZ root" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="868" y="319" width="70" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_icon2" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="950" y="315" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_l2" value="Platform" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="978" y="319" width="60" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_icon3" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="1050" y="315" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_l3" value="Landing Zones" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="840" y="350" width="80" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_icon4" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="840" y="364" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_l4" value="Corp / Online / Sandbox / Decom / ..." style="text;html=1;fontSize=9;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="370" width="230" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="inherit_note" value="📋 上位 MG の割当は下位に自動継承される" style="text;html=1;fontSize=10;fontStyle=2;fontColor=#7B1FA2;align=center;fillColor=#F3E5F5;rounded=1;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="812" y="248" width="300" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#CCC;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="468" width="320" height="240" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_title" value="📁 lib/ ディレクトリ構造" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="476" width="200" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f1" value="lib/" style="text;html=1;fontSize=10;fontFamily=Courier New;align=left;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="503" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f2" value="├── archetype_definitions/" style="text;html=1;fontSize=10;fontFamily=Courier New;align=left;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="520" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f3" value="│   ├── root.alz_archetype_definition.json" style="text;html=1;fontSize=9;fontFamily=Courier New;align=left;fontColor=#666;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="537" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f4" value="│   └── landing_zones.*.json" style="text;html=1;fontSize=9;fontFamily=Courier New;align=left;fontColor=#666;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="554" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f5" value="├── policy_definitions/" style="text;html=1;fontSize=10;fontFamily=Courier New;align=left;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="574" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f6" value="│   └── *.alz_policy_definition.json" style="text;html=1;fontSize=9;fontFamily=Courier New;align=left;fontColor=#666;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="591" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f7" value="├── policy_set_definitions/" style="text;html=1;fontSize=10;fontFamily=Courier New;align=left;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="611" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f8" value="├── policy_assignments/" style="text;html=1;fontSize=10;fontFamily=Courier New;align=left;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="631" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_f9" value="└── architecture_definitions/" style="text;html=1;fontSize=10;fontFamily=Courier New;align=left;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="651" width="280" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_arr" style="strokeColor=#2E7D32;strokeWidth=2;dashed=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="lib_box" target="l3_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lib_arr_l" value="カスタム定義をロード" style="text;html=1;fontSize=8;fontColor=#2E7D32;fontStyle=2;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="425" y="503" width="120" height="14" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

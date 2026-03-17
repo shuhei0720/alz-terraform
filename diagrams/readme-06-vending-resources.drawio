@@ -1,0 +1,190 @@
+<mxfile host="65bd71144e">
+    <diagram id="readme06" name="Subscription Vending 自動生成リソース">
+        <mxGraphModel dx="1771" dy="809" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Subscription Vending — 自動生成リソース" style="text;html=1;fontSize=18;fontStyle=1;align=center;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="10" width="460" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="yaml_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#3F51B5;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="300" height="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="yaml_title" value="📄 YAML 定義ファイル" style="text;html=1;fontSize=13;fontStyle=1;fontColor=#3F51B5;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="88" width="260" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="yaml_path" value="subscriptions/test-subscription.yaml" style="text;html=1;fontSize=9;fontFamily=Courier New;fontColor=#666;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="112" width="260" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="yaml_code" value="subscription_id: &quot;xxxx-xxxx&quot;&#xa;name: &quot;test-subscription&quot;&#xa;management_group: &quot;corp&quot;&#xa;&#xa;tags:&#xa;  Environment: Production&#xa;  CostCenter: IT-001&#xa;&#xa;virtual_networks:&#xa;  vnet1:&#xa;    address_space: [&quot;10.1.0.0/22&quot;]&#xa;    subnets:&#xa;      app: {prefix: &quot;10.1.0.0/24&quot;}&#xa;      db:  {prefix: &quot;10.1.1.0/24&quot;}&#xa;      pe:  {prefix: &quot;10.1.2.0/24&quot;}" style="text;html=1;fontSize=9;fontFamily=Courier New;fontColor=#333;align=left;verticalAlign=top;fillColor=#FFF;rounded=1;strokeColor=#CCC;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="135" width="275" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="arrow_process" style="strokeColor=#333;strokeWidth=3;" parent="1" source="yaml_box" target="tf_box" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arrow_label" value="Terraform&#xa;テンプレートエンジン" style="text;html=1;fontSize=9;fontStyle=1;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="195" width="120" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="tf_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#9673a6;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="390" y="120" width="120" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="tf_step1" value="1. YAML 読込" style="text;html=1;fontSize=8;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="395" y="128" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="tf_step2" value="2. for_each 展開" style="text;html=1;fontSize=8;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="395" y="155" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="tf_step3" value="3. VNet/Subnet 生成" style="text;html=1;fontSize=8;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="395" y="182" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="tf_step4" value="4. NSG/RT 自動付与" style="text;html=1;fontSize=8;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="395" y="209" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="tf_step5" value="5. Peering 接続" style="text;html=1;fontSize=8;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="395" y="236" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="tf_step6" value="6. MG 配置" style="text;html=1;fontSize=8;fontColor=#333;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="395" y="263" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="arrow_output" style="strokeColor=#333;strokeWidth=3;" parent="1" source="tf_box" target="res_frame" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="res_frame" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#0078D4;strokeWidth=3;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="580" y="60" width="660" height="500" as="geometry"/>
+                </mxCell>
+                <mxCell id="res_title" value="🎯 自動生成されるリソース群" style="text;html=1;fontSize=14;fontStyle=1;fontColor=#0078D4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="68" width="270" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="target_sub" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="105" width="320" height="400" as="geometry"/>
+                </mxCell>
+                <mxCell id="target_sub_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/general/Subscriptions.svg;" parent="1" vertex="1">
+                    <mxGeometry x="610" y="112" width="28" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="target_sub_l" value="ターゲット サブスクリプション" style="text;html=1;fontSize=12;fontStyle=1;fontColor=#1565C0;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="642" y="116" width="250" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="rg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF;strokeColor=#999;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="152" width="280" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="rg_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/general/Resource_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="630" y="160" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="rg_l" value="Resource Group (rg-{name}-{region})" style="text;html=1;fontSize=10;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="163" width="230" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="vnet" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="205" width="280" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="vnet_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/networking/Virtual_Networks.svg;" parent="1" vertex="1">
+                    <mxGeometry x="630" y="213" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="vnet_l" value="Virtual Network (10.1.0.0/22)" style="text;html=1;fontSize=10;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="216" width="230" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_app" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="260" width="240" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_app_l" value="Subnet: app (10.1.0.0/24)" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="266" width="200" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_db" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="300" width="240" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_db_l" value="Subnet: db (10.1.1.0/24)" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="306" width="200" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_pe" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="340" width="240" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="sub_pe_l" value="Subnet: pe (10.1.2.0/24)" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="346" width="200" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="nsg_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="385" width="280" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="nsg_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/networking/Network_Security_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="630" y="392" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="nsg_l" value="NSG × 各サブネット（自動バインド）" style="text;html=1;fontSize=10;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="396" width="230" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="rt_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="440" width="280" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="rt_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/networking/Route_Tables.svg;" parent="1" vertex="1">
+                    <mxGeometry x="630" y="448" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="rt_l" value="Route Table × 各サブネット" style="text;html=1;fontSize=10;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="449" width="230" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="rt_d" value="0.0.0.0/0 → Firewall Private IP" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="467" width="220" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="hub_side" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#0078D4;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="960" y="105" width="260" height="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="hub_side_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/networking/Virtual_Networks.svg;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="112" width="28" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="hub_side_l" value="Hub VNet 側 (自動追加)" style="text;html=1;fontSize=12;fontStyle=1;fontColor=#0078D4;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1002" y="116" width="200" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="peer_h2s" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0078D4;" parent="1" vertex="1">
+                    <mxGeometry x="975" y="155" width="230" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="peer_h2s_l" value="VNet Peering: Hub → Spoke" style="text;html=1;fontSize=9;fontStyle=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="975" y="162" width="230" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="peer_s2h" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0078D4;" parent="1" vertex="1">
+                    <mxGeometry x="975" y="200" width="230" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="peer_s2h_l" value="VNet Peering: Spoke → Hub" style="text;html=1;fontSize=9;fontStyle=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="975" y="207" width="230" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="hub_rt" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="975" y="245" width="230" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="hub_rt_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/networking/Route_Tables.svg;" parent="1" vertex="1">
+                    <mxGeometry x="985" y="252" width="20" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="hub_rt_l" value="GW Route Table 更新" style="text;html=1;fontSize=9;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="254" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="hub_rt_d" value="Spoke CIDR → Firewall" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="272" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="dns_link" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="975" y="300" width="230" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="dns_link_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/networking/DNS_Zones.svg;" parent="1" vertex="1">
+                    <mxGeometry x="985" y="305" width="20" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="dns_link_l" value="Private DNS Zone Link" style="text;html=1;fontSize=9;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="307" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="peer_arrow" style="strokeColor=#0078D4;strokeWidth=3;dashed=1;dashPattern=8 4;exitX=1;exitY=0.4;entryX=0;entryY=0.4;" parent="1" source="target_sub" target="hub_side" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="peer_arrow_l" value="双方向&#xa;Peering" style="text;html=1;fontSize=8;fontStyle=1;fontColor=#0078D4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="923" y="230" width="50" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_assign_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#3F51B5;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="960" y="385" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_assign_icon" value="" style="aspect=fixed;html=1;points=[];image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="392" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_assign_l" value="管理グループ配置" style="text;html=1;fontSize=11;fontStyle=1;fontColor=#3F51B5;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="1000" y="395" width="200" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_assign_d" value="YAML の management_group 指定に従い&#xa;Corp / Online / Sandbox に自動配置" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="975" y="420" width="230" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="provider_note" value="⚙️ azurerm (per-subscription alias)&#xa;+ azapi (retry 付き) で操作" style="text;html=1;fontSize=9;fontStyle=2;fontColor=#CC6600;align=center;fillColor=#fff2cc;rounded=1;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="400" width="300" height="30" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

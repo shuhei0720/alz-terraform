@@ -1,0 +1,220 @@
+<mxfile host="65bd71144e">
+    <diagram id="readme03" name="管理グループ階層">
+        <mxGraphModel dx="762" dy="445" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="管理グループ階層" style="text;html=1;fontSize=18;fontStyle=1;align=center;fontColor=#333;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="10" width="300" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tenant" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E0E0;strokeColor=#999;strokeWidth=2;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="55" width="280" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="tenant_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="412" y="63" width="32" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="tenant_l" value="Tenant Root Group" style="text;html=1;fontSize=12;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="65" width="200" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="tenant_d" value="Azure テナントに 1 つ自動作成" style="text;html=1;fontSize=8;fontColor=#666;fontStyle=2;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="83" width="200" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="alz" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#0078D4;strokeWidth=3;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="410" y="135" width="260" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="alz_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="143" width="32" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="alz_l" value="ALZ (root_id)" style="text;html=1;fontSize=13;fontStyle=1;fontColor=#0078D4;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="458" y="148" width="200" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_t_alz" style="strokeColor=#999;strokeWidth=2;" parent="1" source="tenant" target="alz" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="sleep_note" value="⏱ time_sleep 30s" style="text;html=1;fontSize=9;fontColor=#CC6600;fontStyle=2;align=left;fillColor=#fff2cc;rounded=1;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="685" y="155" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="sleep_arr" style="strokeColor=#d6b656;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="alz" target="sleep_note" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="platform" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="225" width="200" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="platform_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="88" y="230" width="28" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="platform_l" value="Platform" style="text;html=1;fontSize=12;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="120" y="234" width="140" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_alz_p" style="strokeColor=#0078D4;strokeWidth=2;" parent="1" source="alz" target="platform" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_mgmt" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="300" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_mgmt_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Subscriptions.svg;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="305" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_mgmt_l" value="Management" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="76" y="306" width="150" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_mgmt_d" value="監視・ログ・セキュリティ基盤&#xa;LAW, Sentinel, DCR, UAMI" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="328" width="180" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_p_mgmt" style="strokeColor=#6c8ebf;" parent="1" source="platform" target="mg_mgmt" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_conn" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="380" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_conn_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Subscriptions.svg;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="385" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_conn_l" value="Connectivity" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="76" y="386" width="150" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_conn_d" value="ネットワーク基盤&#xa;Hub VNet, Firewall, DNS, ER" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="408" width="180" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_p_conn" style="strokeColor=#6c8ebf;" parent="1" source="platform" target="mg_conn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_ident" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="460" width="200" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_ident_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Subscriptions.svg;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="468" width="22" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_ident_l" value="Identity" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="74" y="469" width="100" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_ident_d" value="Entra ID（将来拡張）" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="487" width="150" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_p_ident" style="strokeColor=#6c8ebf;" parent="1" source="platform" target="mg_ident" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_sec" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="520" width="200" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_sec_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Subscriptions.svg;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="528" width="22" height="22" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_sec_l" value="Security" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="74" y="529" width="100" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_sec_d" value="セキュリティ運用（将来拡張）" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="547" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_p_sec" style="strokeColor=#6c8ebf;" parent="1" source="platform" target="mg_sec" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lz" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="420" y="225" width="200" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lz_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="428" y="230" width="28" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="lz_l" value="Landing Zones" style="text;html=1;fontSize=12;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="460" y="234" width="140" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_alz_lz" style="strokeColor=#0078D4;strokeWidth=2;" parent="1" source="alz" target="lz" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_corp" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="300" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_corp_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Subscriptions.svg;" parent="1" vertex="1">
+                    <mxGeometry x="388" y="305" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_corp_l" value="Corp" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="416" y="306" width="100" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_corp_d" value="社内ワークロード&#xa;オンプレ接続あり (ER)" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="388" y="328" width="180" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_lz_corp" style="strokeColor=#6c8ebf;" parent="1" source="lz" target="mg_corp" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_online" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="380" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_online_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Subscriptions.svg;" parent="1" vertex="1">
+                    <mxGeometry x="388" y="385" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_online_l" value="Online" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="416" y="386" width="100" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="mg_online_d" value="インターネット公開&#xa;アプリケーション" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="388" y="408" width="180" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_lz_online" style="strokeColor=#6c8ebf;" parent="1" source="lz" target="mg_online" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="sandbox" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="225" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="sandbox_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="738" y="232" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="sandbox_l" value="Sandbox" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="766" y="234" width="100" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="sandbox_d" value="テスト・PoC（制限緩和）" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="738" y="256" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_alz_sb" style="strokeColor=#0078D4;strokeWidth=2;" parent="1" source="alz" target="sandbox" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="decom" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999;shadow=1;" parent="1" vertex="1">
+                    <mxGeometry x="960" y="225" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="decom_icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;image=img/lib/azure2/general/Management_Groups.svg;" parent="1" vertex="1">
+                    <mxGeometry x="968" y="232" width="24" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="decom_l" value="Decommissioned" style="text;html=1;fontSize=11;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="996" y="234" width="150" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="decom_d" value="廃止予定リソースの隔離" style="text;html=1;fontSize=8;fontColor=#666;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="968" y="256" width="180" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_alz_dc" style="strokeColor=#0078D4;strokeWidth=2;" parent="1" source="alz" target="decom" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="policy_note" value="📋 ポリシーは上位 MG から配下全体に継承" style="text;html=1;fontSize=10;fontStyle=2;fontColor=#7B1FA2;align=center;fillColor=#F3E5F5;rounded=1;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="685" y="123" width="300" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_frame" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#CCC;" parent="1" vertex="1">
+                    <mxGeometry x="750" y="340" width="410" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_title" value="凡例" style="text;html=1;fontSize=10;fontStyle=1;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="345" width="50" height="16" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="370" width="20" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg1_l" value="監視・ログ基盤" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="785" y="369" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="390" width="20" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg2_l" value="ネットワーク基盤" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="785" y="389" width="110" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="410" width="20" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg3_l" value="ワークロード" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="785" y="409" width="100" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg4" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999;" parent="1" vertex="1">
+                    <mxGeometry x="910" y="370" width="20" height="14" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg4_l" value="将来拡張 / 汎用" style="text;html=1;fontSize=9;align=left;" parent="1" vertex="1">
+                    <mxGeometry x="935" y="369" width="120" height="14" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

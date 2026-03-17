@@ -1,0 +1,28 @@
+# =============================================================================
+# AMBA landing_zones archetype override
+# =============================================================================
+# AMBA の Landing Zone 向け監視ポリシーを制御します。
+# =============================================================================
+
+base_archetype: amba_landing_zones
+name: amba_landing_zones_custom
+
+policy_assignments_to_add: []
+policy_assignments_to_remove: [
+# 除外する場合はコメントを外してください:
+  # Deploy-AMBA-HybridVM,
+  # Deploy-AMBA-KeyMgmt,
+  # Deploy-AMBA-LoadBalance,
+  # Deploy-AMBA-NetworkChang,
+  # Deploy-AMBA-RecoverySvc,
+  # Deploy-AMBA-Storage,
+  # Deploy-AMBA-VM,
+  # Deploy-AMBA-Web,
+]
+
+policy_definitions_to_add: []
+policy_definitions_to_remove: []
+policy_set_definitions_to_add: []
+policy_set_definitions_to_remove: []
+role_definitions_to_add: []
+role_definitions_to_remove: []

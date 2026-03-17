@@ -1,0 +1,21 @@
+# =============================================================================
+# sandbox 管理グループの archetype override
+# =============================================================================
+
+base_archetype: sandbox
+name: sandbox_custom
+
+policy_assignments_to_add: []
+policy_assignments_to_remove: [
+# 除外する場合はコメントを外してください:
+  # Enforce-ALZ-Sandbox,
+]
+
+policy_definitions_to_add: []
+policy_definitions_to_remove: []
+
+policy_set_definitions_to_add: []
+policy_set_definitions_to_remove: []
+
+role_definitions_to_add: []
+role_definitions_to_remove: []
