@@ -333,7 +333,7 @@ resource "azapi_resource" "alz_policy_assignments" {
   response_export_values = []
 
   retry = {
-    error_message_regex  = ["out of scope", "hierarchy"]
+    error_message_regex  = ["out of scope", "hierarchy", "not found", "NotFound"]
     interval_seconds     = 30
     max_interval_seconds = 300
   }
