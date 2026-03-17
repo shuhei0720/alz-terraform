@@ -19,7 +19,6 @@ jobs:
   plan:
     name: Validate & Plan
     runs-on: ubuntu-latest
-    environment: azure
 
     steps:
       - name: Checkout
