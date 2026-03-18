@@ -88,8 +88,7 @@ alz-terraform/
 ├── network-hub.tf                # Hub VNet, Firewall, Bastion, DNS Resolver, ExpressRoute, ルートテーブル
 ├── network-dns.tf                # Private DNS ゾーン 56 個 + VNet リンク
 ├── policy.tf                     # ポリシーデプロイエンジン
-├── subscription-vending.tf       # YAML 駆動のサブスクリプション自動払い出し
-├── amba-action-groups.tf         # Spoke サブスクリプション別アラート通知（AG + Alert Processing Rule）
+├── subscription-vending.tf       # YAML 駆動のサブスクリプション自動払い出し + Spoke アラートルーティング
 │
 │  ── ポリシーライブラリ ──────────────────────────────────────
 ├── lib/
@@ -326,13 +325,18 @@ Azure Policy は「このサブスクリプション内では〇〇を許可/禁
 
 ![ポリシー 3 層アーキテクチャ](diagrams/readme-05-policy-3-layer.svg)
 
-### alzライブラリを使用する理由
+### alz ライブラリを使用する理由
 
-alzライブラリを使用することで、外部への依存が発生してしまいます。
-それでもこのalzライブラリを使用するのは、まずアーキタイプの仕組みによりTerraformでポリシー関連のリソースを表現するより、
-格段に理解しやすい形で記述できます。
-そして、大量のポリシーを独自でJSON記述するのは骨が折れます。組み込みポリシーで済めばいいですが、ALZのポリシーにはカスタムポリシーも数多く含まれます。
-そのため、ALZポリシーをベースとして取捨選択しながら自社に合わせたポリシーを設計していくのが最善と考えたため今回alzを使用しました。
+alz ライブラリは外部依存が発生してしまいますが、それを上回るメリットがあります。
+
+| 観点 | 自前で書いた場合の課題 | alz ライブラリで解決 |
+|:---|:---|:---|
+| **可読性** | Terraform の `azurerm_policy_*` リソースを数百個並べると、全体像の把握が困難 | アーキタイプ（YAML）で MG 単位のポリシー構成を宣言的に記述でき、見通しが良い |
+| **実装コスト** | カスタムポリシー定義を 1 つずつ JSON で書く必要があり、数が多いと非現実的 | ALZ が提供する 300 近いポリシーをそのまま流用できる（ALZポリシーはカスタムポリシーも多く含まれる） |
+| **柔軟性** | 組み込みポリシーだけでは MS のベストプラクティスを網羅できない | ALZポリシーをベースとして取捨選択しながら自社に合わせたポリシーを設計することができる |
+| **保守性** | ポリシーの追加・変更のたびに `.tf` ファイルを直接編集する必要がある | `lib/` 内の YAML/JSON を編集するだけで完結し、`policy.tf` は原則ノータッチ |
+
+AMBAについても選んだ理由があります。このREADMEの[監視基盤](#監視基盤)で解説しています。
 
 ### アーキタイプとは
 
@@ -425,6 +429,21 @@ terraform apply   # 実際に作成
 ### 自動作成されるリソース
 
 ![Subscription Vending 自動生成リソース](diagrams/readme-06-vending-resources.svg)
+
+### Spoke リソースの委任（lifecycle ignore_changes）
+
+Spoke サブスクリプション内のリソースは **初回 apply でベースラインを作成した後、Terraform の追跡対象外** になります。
+これにより、Spoke チームが自由にリソースを変更しても `terraform apply` で上書きされません。
+
+| 区分 | リソース | Terraform の動作 |
+|:---|:---|:---|
+| **委任（ignore_changes = all）** | RG, VNet, Subnet, NSG, Route Table, AG, ARP | 初回作成のみ。以降のドリフトは無視 |
+| **プラットフォーム管理** | Spoke↔Hub Peering, Gateway Route | 継続追跡。接続基盤は常に正しい状態を維持 |
+
+- **初回 apply**: Terraform がベースラインリソース（VNet, サブネット, NSG, ルートテーブル等）を作成
+- **以降の apply**: Spoke チームによる変更（NSG ルール追加、アドレス空間変更など）を上書きしない
+- **Azure 上で削除された場合**: Terraform がベースラインを再作成（インフラの一貫性を保証）
+- **ピアリング・ルート**: Hub との接続は常にプラットフォームチームが管理。意図しない切断を防止
 
 ### YAML の書き方
 
@@ -557,8 +576,9 @@ AMBA はこれらを **ポリシーとして一括デプロイ** します。新
 
 | リソース | 説明 |
 |:---|:---|
-| **Action Group** | `alert_contacts` のメールアドレスを通知先として登録。管理サブスクリプションの `rg-amba-alerts-*` に集中配置 |
-| **Alert Processing Rule** | スコープ = Spoke サブスクリプション全体。対象サブスクのアラートを担当者の Action Group にルーティング |
+| **リソースグループ** | Spoke サブスクリプション内に `rg-amba-alerts-<location>` を作成 |
+| **Action Group** | `alert_contacts` のメールアドレスを通知先として登録。Spoke サブスクリプション内に配置 |
+| **Alert Processing Rule** | スコープ = Spoke サブスクリプション全体。同一サブスクリプション内の AG にルーティング |
 
 ```yaml
 # subscriptions/my-system.yaml に追記するだけ
@@ -670,6 +690,7 @@ terraform apply
 
 **ER Gateway のプロビジョニング** が最大のボトルネックで、約 25〜30 分かかります。
 ER Gateway は VNet レベルの書き込みロックを長時間保持するため、他の VNet 操作（Bastion や DNS Resolver のデプロイ）と競合します。
+さらに、DNS Resolver と Bastion も同一 VNet を操作するため、同時実行すると VNet の `provisioningState` が `Updating` となり `BadRequest` エラーが発生します。
 これを避けるため、以下の依存順序を設定しています。
 
 ```
@@ -678,12 +699,12 @@ VNet
 │
 └── ER Gateway（depends_on = 全サブネット）  ← 約30分、VNet ロック保持
     │
-    └── VNet ロック解放後
-        ├── Bastion Host
-        └── DNS Resolver → Endpoints → Forwarding Ruleset
+    └── VNet ロック解放後（直列化）
+        └── DNS Resolver → Inbound/Outbound Endpoints
+            └── Bastion Host  ← DNS Resolver 完了後に開始
 ```
 
-全体の所要時間は ER Gateway + Bastion/Resolver（約 45〜55 分）です。
+全体の所要時間は ER Gateway + DNS Resolver + Bastion（約 45〜55 分）です。
 
 ---
 

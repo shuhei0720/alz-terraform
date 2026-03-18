@@ -409,8 +409,14 @@ resource "azurerm_bastion_host" "hub" {
 
   tags = var.tags
 
-  # ER Gateway の VNet ロック解放後に作成（Bastion は subnet の ipConfigurations を更新 = VNet 操作）
-  depends_on = [azurerm_virtual_network_gateway.er]
+  # DNS Resolver の VNet 操作完了後に作成。
+  # Bastion と DNS Resolver は同一 VNet を操作するため、同時実行すると
+  # VNet の provisioningState が Updating のまま BadRequest になる。
+  # DNS Resolver（数十秒）→ Bastion（約 10 分）の順で直列化する。
+  depends_on = [
+    azurerm_virtual_network_gateway.er,
+    azurerm_private_dns_resolver_outbound_endpoint.hub,
+  ]
 }
 
 # =============================================================================
