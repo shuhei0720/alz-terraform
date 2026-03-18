@@ -73,7 +73,7 @@ resource "azurerm_subnet" "dns_resolver_inbound" {
   name                 = "InboundEndpointSubnet"
   resource_group_name  = azurerm_resource_group.hub[each.key].name
   virtual_network_name = azurerm_virtual_network.hub[each.key].name
-  address_prefixes       = [each.value.dns_resolver_inbound_subnet_prefix]
+  address_prefixes     = [each.value.dns_resolver_inbound_subnet_prefix]
 }
 
 # OutboundEndpointSubnet — プライベートDNSリゾルバ アウトバウンドエンドポイント用
@@ -85,7 +85,7 @@ resource "azurerm_subnet" "dns_resolver_outbound" {
   name                 = "OutboundEndpointSubnet"
   resource_group_name  = azurerm_resource_group.hub[each.key].name
   virtual_network_name = azurerm_virtual_network.hub[each.key].name
-  address_prefixes       = [each.value.dns_resolver_outbound_subnet_prefix]
+  address_prefixes     = [each.value.dns_resolver_outbound_subnet_prefix]
 }
 
 # =============================================================================
