@@ -79,7 +79,7 @@ resource "azurerm_subnet" "dns_resolver_inbound" {
 # OutboundEndpointSubnet — プライベートDNSリゾルバ アウトバウンドエンドポイント用
 resource "azurerm_subnet" "dns_resolver_outbound" {
   for_each = {
-    for k, v in var.hub_virtual_networks : k => v if v.dns_resolver_inbound_subnet_prefix != null
+    for k, v in var.hub_virtual_networks : k => v if v.dns_resolver_outbound_subnet_prefix != null
   }
   provider             = azurerm.connectivity
   name                 = "OutboundEndpointSubnet"
@@ -432,7 +432,7 @@ resource "azurerm_private_dns_resolver_inbound_endpoint" "hub" {
 resource "azurerm_private_dns_resolver_outbound_endpoint" "hub" {
   for_each = {
     for k, v in var.hub_virtual_networks :
-    k => v if v.dns_resolver_inbound_subnet_prefix != null
+    k => v if v.dns_resolver_outbound_subnet_prefix != null
   }
   provider                = azurerm.connectivity
   name                    = "pdr-outbound-${each.value.location}"
