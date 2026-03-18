@@ -74,6 +74,14 @@ resource "azurerm_subnet" "dns_resolver_inbound" {
   resource_group_name  = azurerm_resource_group.hub[each.key].name
   virtual_network_name = azurerm_virtual_network.hub[each.key].name
   address_prefixes     = [each.value.dns_resolver_inbound_subnet_prefix]
+
+  delegation {
+    name = "Microsoft.Network.dnsResolvers"
+    service_delegation {
+      name    = "Microsoft.Network/dnsResolvers"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 # OutboundEndpointSubnet — プライベートDNSリゾルバ アウトバウンドエンドポイント用
@@ -86,6 +94,14 @@ resource "azurerm_subnet" "dns_resolver_outbound" {
   resource_group_name  = azurerm_resource_group.hub[each.key].name
   virtual_network_name = azurerm_virtual_network.hub[each.key].name
   address_prefixes     = [each.value.dns_resolver_outbound_subnet_prefix]
+
+  delegation {
+    name = "Microsoft.Network.dnsResolvers"
+    service_delegation {
+      name    = "Microsoft.Network/dnsResolvers"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 # =============================================================================
@@ -392,20 +408,14 @@ resource "azurerm_bastion_host" "hub" {
   }
 
   tags = var.tags
+
+  # ER Gateway の VNet ロック解放後に作成（Bastion は subnet の ipConfigurations を更新 = VNet 操作）
+  depends_on = [azurerm_virtual_network_gateway.er]
 }
 
 # =============================================================================
 # Private DNS Resolver
 # =============================================================================
-
-resource "time_sleep" "pdr_wait_after_vnet" {
-  create_duration = "90s"
-  depends_on = [
-    azurerm_virtual_network.hub,
-    azurerm_subnet.dns_resolver_inbound,
-    azurerm_subnet.dns_resolver_outbound
-  ]
-}
 
 resource "azurerm_private_dns_resolver" "hub" {
   for_each = {
@@ -419,9 +429,9 @@ resource "azurerm_private_dns_resolver" "hub" {
   virtual_network_id  = azurerm_virtual_network.hub[each.key].id
 
   tags = var.tags
-  depends_on = [
-    time_sleep.pdr_wait_after_vnet
-  ]
+
+  # ER Gateway の VNet ロック解放後に作成
+  depends_on = [azurerm_virtual_network_gateway.er]
 }
 
 resource "azurerm_private_dns_resolver_inbound_endpoint" "hub" {
@@ -439,9 +449,6 @@ resource "azurerm_private_dns_resolver_inbound_endpoint" "hub" {
   }
 
   tags = var.tags
-  depends_on = [
-    time_sleep.pdr_wait_after_vnet
-  ]
 }
 
 resource "azurerm_private_dns_resolver_outbound_endpoint" "hub" {
@@ -456,9 +463,6 @@ resource "azurerm_private_dns_resolver_outbound_endpoint" "hub" {
   subnet_id               = azurerm_subnet.dns_resolver_outbound[each.key].id
 
   tags = var.tags
-  depends_on = [
-    time_sleep.pdr_wait_after_vnet
-  ]
 }
 
 resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
@@ -474,9 +478,6 @@ resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
   private_dns_resolver_outbound_endpoint_ids = [azurerm_private_dns_resolver_outbound_endpoint.hub[each.key].id]
 
   tags = var.tags
-  depends_on = [
-    time_sleep.pdr_wait_after_vnet
-  ]
 }
 
 # =============================================================================
@@ -539,6 +540,16 @@ resource "azurerm_virtual_network_gateway" "er" {
   }
 
   tags = var.tags
+
+  # ER Gateway は VNet ロックを 30-45 分保持する。
+  # 全サブネット作成完了後に開始し、他サブネットのリトライを防ぐ。
+  depends_on = [
+    azurerm_subnet.bastion,
+    azurerm_subnet.firewall,
+    azurerm_subnet.firewall_management,
+    azurerm_subnet.dns_resolver_inbound,
+    azurerm_subnet.dns_resolver_outbound,
+  ]
 }
 
 # =============================================================================

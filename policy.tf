@@ -378,6 +378,13 @@ resource "azapi_resource" "alz_policy_role_assignments" {
   ]
   response_export_values = []
 
+  # MG 作成後の RBAC 伝播遅延で AuthorizationFailed が発生する場合がある
+  retry = {
+    error_message_regex  = ["AuthorizationFailed"]
+    interval_seconds     = 30
+    max_interval_seconds = 300
+  }
+
   depends_on = [azapi_resource.private_dns_zone]
 
   lifecycle {
