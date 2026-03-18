@@ -72,11 +72,11 @@ resource "azurerm_firewall_policy" "hub" {
   for_each = {
     for k, v in var.hub_virtual_networks : k => v if v.firewall_subnet_prefix != null
   }
-  provider            = azurerm.connectivity
-  name                = "fwp-hub-${each.value.location}"
-  location            = each.value.location
-  resource_group_name = azurerm_resource_group.hub[each.key].name
-  sku                 = each.value.firewall_sku_tier
+  provider                 = azurerm.connectivity
+  name                     = "fwp-hub-${each.value.location}"
+  location                 = each.value.location
+  resource_group_name      = azurerm_resource_group.hub[each.key].name
+  sku                      = each.value.firewall_sku_tier
   threat_intelligence_mode = each.value.firewall_threat_intel_mode
 
   dns {
@@ -174,9 +174,9 @@ resource "azurerm_firewall_policy_rule_collection_group" "hub_default" {
 
     # Microsoft 365 (ネットワーク層)
     rule {
-      name                  = "Allow_M365"
-      protocols             = ["TCP", "UDP", "ICMP"]
-      source_addresses      = ["*"]
+      name             = "Allow_M365"
+      protocols        = ["TCP", "UDP", "ICMP"]
+      source_addresses = ["*"]
       destination_addresses = [
         "Office365.Exchange.Optimize",
         "Office365.Exchange.Allow.Required",
@@ -330,6 +330,41 @@ resource "azurerm_firewall" "hub" {
     name                 = "fw-ipconfig"
     subnet_id            = azurerm_subnet.firewall[each.key].id
     public_ip_address_id = azurerm_public_ip.firewall[each.key].id
+  }
+
+  tags = var.tags
+}
+
+# =============================================================================
+# Azure Bastion
+# =============================================================================
+
+resource "azurerm_public_ip" "bastion" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v if v.bastion_subnet_prefix != null
+  }
+  provider            = azurerm.connectivity
+  name                = "pip-bastion-${each.value.location}"
+  location            = each.value.location
+  resource_group_name = azurerm_resource_group.hub[each.key].name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
+
+resource "azurerm_bastion_host" "hub" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v if v.bastion_subnet_prefix != null
+  }
+  provider            = azurerm.connectivity
+  name                = "bastion-hub-${each.value.location}"
+  location            = each.value.location
+  resource_group_name = azurerm_resource_group.hub[each.key].name
+
+  ip_configuration {
+    name                 = "bastion-ipconfig"
+    subnet_id            = azurerm_subnet.bastion[each.key].id
+    public_ip_address_id = azurerm_public_ip.bastion[each.key].id
   }
 
   tags = var.tags
@@ -525,11 +560,11 @@ resource "azurerm_subnet" "spoke" {
     for item in flatten([
       for vnet_key, vnet in var.spoke_virtual_networks : [
         for subnet_key, subnet in vnet.subnets : {
-          key                  = "${vnet_key}-${subnet_key}"
-          vnet_key             = vnet_key
-          subnet_name          = subnet_key
-          address_prefix       = subnet.address_prefix
-          resource_group_name  = vnet.resource_group_name
+          key                 = "${vnet_key}-${subnet_key}"
+          vnet_key            = vnet_key
+          subnet_name         = subnet_key
+          address_prefix      = subnet.address_prefix
+          resource_group_name = vnet.resource_group_name
         }
       ]
     ]) : item.key => item

@@ -142,62 +142,62 @@ variable "private_dns_zones" {
   default = [
     # --- ALZ Deploy-Private-DNS-Zones ポリシーが参照する 50 ゾーン ---
     # ※ 一部のゾーンはリージョン固有（japaneast）。リージョン変更時は要修正。
-    "privatelink.adf.azure.com",                          # Data Factory
-    "privatelink.afs.azure.net",                           # Azure File Sync
-    "privatelink.agentsvc.azure-automation.net",           # Automation Agent
-    "privatelink.api.azureml.ms",                          # Azure ML
-    "privatelink.azconfig.io",                             # App Configuration
-    "privatelink.azure-automation.net",                    # Automation Webhook/DSC
-    "privatelink.azure-devices-provisioning.net",          # IoT DPS
-    "privatelink.azure-devices.net",                       # IoT Hub
-    "privatelink.azurecr.io",                              # Container Registry
-    "privatelink.azuredatabricks.net",                     # Databricks
-    "privatelink.azurehdinsight.net",                      # HDInsight
-    "privatelink.azureiotcentral.com",                     # IoT Central
-    "privatelink.azurewebsites.net",                       # App Service / Functions
-    "privatelink.batch.azure.com",                         # Batch
-    "privatelink.blob.core.windows.net",                   # Blob Storage
-    "privatelink.cassandra.cosmos.azure.com",              # Cosmos DB Cassandra
-    "privatelink.cognitiveservices.azure.com",             # Cognitive Services
-    "privatelink.datafactory.azure.net",                   # Data Factory Portal
-    "privatelink.dev.azuresynapse.net",                    # Synapse Dev
-    "privatelink.dfs.core.windows.net",                    # Data Lake Storage Gen2
-    "privatelink.directline.botframework.com",             # Bot Service DirectLine
-    "privatelink.documents.azure.com",                     # Cosmos DB SQL API
-    "privatelink.dp.kubernetesconfiguration.azure.com",    # Arc Kubernetes Config
-    "privatelink.eventgrid.azure.net",                     # Event Grid
-    "privatelink.file.core.windows.net",                   # File Storage
-    "privatelink.grafana.azure.com",                       # Managed Grafana
-    "privatelink.gremlin.cosmos.azure.com",                # Cosmos DB Gremlin
-    "privatelink.guestconfiguration.azure.com",            # Guest Configuration
-    "privatelink.his.arc.azure.com",                       # Arc Hybrid Identity
-    "privatelink.japaneast.azmk8s.io",                     # AKS (japaneast)
-    "privatelink.japaneast.kusto.windows.net",             # Kusto/ADX (japaneast)
-    "privatelink.jpe.backup.windowsazure.com",             # Backup (japaneast)
-    "japaneast.data.privatelink.azurecr.io",               # ACR Data (japaneast)
-    "privatelink.media.azure.net",                         # Media Services
-    "privatelink.mongo.cosmos.azure.com",                  # Cosmos DB MongoDB
-    "privatelink.monitor.azure.com",                       # Azure Monitor
-    "privatelink.notebooks.azure.net",                     # ML Notebooks
-    "privatelink.ods.opinsights.azure.com",                # ODS (Log Analytics)
-    "privatelink.oms.opinsights.azure.com",                # OMS (Log Analytics)
-    "privatelink.prod.migration.windowsazure.com",         # Azure Migrate
-    "privatelink.queue.core.windows.net",                  # Queue Storage
-    "privatelink.redis.cache.windows.net",                 # Redis Cache
-    "privatelink.search.windows.net",                      # Cognitive Search
-    "privatelink.service.signalr.net",                     # SignalR
-    "privatelink.servicebus.windows.net",                  # Service Bus
-    "privatelink.siterecovery.windowsazure.com",           # Site Recovery
-    "privatelink.sql.azuresynapse.net",                    # Synapse SQL
-    "privatelink.table.core.windows.net",                  # Table Storage
-    "privatelink.table.cosmos.azure.com",                  # Cosmos DB Table
-    "privatelink.vaultcore.azure.net",                     # Key Vault
-    "privatelink.web.core.windows.net",                    # Static Website Storage
-    "privatelink.webpubsub.azure.com",                     # Web PubSub
-    "privatelink.wvd.microsoft.com",                       # Azure Virtual Desktop
+    "privatelink.adf.azure.com",                        # Data Factory
+    "privatelink.afs.azure.net",                        # Azure File Sync
+    "privatelink.agentsvc.azure-automation.net",        # Automation Agent
+    "privatelink.api.azureml.ms",                       # Azure ML
+    "privatelink.azconfig.io",                          # App Configuration
+    "privatelink.azure-automation.net",                 # Automation Webhook/DSC
+    "privatelink.azure-devices-provisioning.net",       # IoT DPS
+    "privatelink.azure-devices.net",                    # IoT Hub
+    "privatelink.azurecr.io",                           # Container Registry
+    "privatelink.azuredatabricks.net",                  # Databricks
+    "privatelink.azurehdinsight.net",                   # HDInsight
+    "privatelink.azureiotcentral.com",                  # IoT Central
+    "privatelink.azurewebsites.net",                    # App Service / Functions
+    "privatelink.batch.azure.com",                      # Batch
+    "privatelink.blob.core.windows.net",                # Blob Storage
+    "privatelink.cassandra.cosmos.azure.com",           # Cosmos DB Cassandra
+    "privatelink.cognitiveservices.azure.com",          # Cognitive Services
+    "privatelink.datafactory.azure.net",                # Data Factory Portal
+    "privatelink.dev.azuresynapse.net",                 # Synapse Dev
+    "privatelink.dfs.core.windows.net",                 # Data Lake Storage Gen2
+    "privatelink.directline.botframework.com",          # Bot Service DirectLine
+    "privatelink.documents.azure.com",                  # Cosmos DB SQL API
+    "privatelink.dp.kubernetesconfiguration.azure.com", # Arc Kubernetes Config
+    "privatelink.eventgrid.azure.net",                  # Event Grid
+    "privatelink.file.core.windows.net",                # File Storage
+    "privatelink.grafana.azure.com",                    # Managed Grafana
+    "privatelink.gremlin.cosmos.azure.com",             # Cosmos DB Gremlin
+    "privatelink.guestconfiguration.azure.com",         # Guest Configuration
+    "privatelink.his.arc.azure.com",                    # Arc Hybrid Identity
+    "privatelink.japaneast.azmk8s.io",                  # AKS (japaneast)
+    "privatelink.japaneast.kusto.windows.net",          # Kusto/ADX (japaneast)
+    "privatelink.jpe.backup.windowsazure.com",          # Backup (japaneast)
+    "japaneast.data.privatelink.azurecr.io",            # ACR Data (japaneast)
+    "privatelink.media.azure.net",                      # Media Services
+    "privatelink.mongo.cosmos.azure.com",               # Cosmos DB MongoDB
+    "privatelink.monitor.azure.com",                    # Azure Monitor
+    "privatelink.notebooks.azure.net",                  # ML Notebooks
+    "privatelink.ods.opinsights.azure.com",             # ODS (Log Analytics)
+    "privatelink.oms.opinsights.azure.com",             # OMS (Log Analytics)
+    "privatelink.prod.migration.windowsazure.com",      # Azure Migrate
+    "privatelink.queue.core.windows.net",               # Queue Storage
+    "privatelink.redis.cache.windows.net",              # Redis Cache
+    "privatelink.search.windows.net",                   # Cognitive Search
+    "privatelink.service.signalr.net",                  # SignalR
+    "privatelink.servicebus.windows.net",               # Service Bus
+    "privatelink.siterecovery.windowsazure.com",        # Site Recovery
+    "privatelink.sql.azuresynapse.net",                 # Synapse SQL
+    "privatelink.table.core.windows.net",               # Table Storage
+    "privatelink.table.cosmos.azure.com",               # Cosmos DB Table
+    "privatelink.vaultcore.azure.net",                  # Key Vault
+    "privatelink.web.core.windows.net",                 # Static Website Storage
+    "privatelink.webpubsub.azure.com",                  # Web PubSub
+    "privatelink.wvd.microsoft.com",                    # Azure Virtual Desktop
     # --- ALZ ポリシー外の追加ゾーン ---
-    "privatelink.database.windows.net",                    # Azure SQL Database
-    "privatelink.openai.azure.com",                        # Azure OpenAI
+    "privatelink.database.windows.net", # Azure SQL Database
+    "privatelink.openai.azure.com",     # Azure OpenAI
   ]
 }
 

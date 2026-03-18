@@ -35,10 +35,10 @@ hub_virtual_networks = {
   primary = {
     location                          = "japaneast"
     address_space                     = ["10.0.0.0/16"]
-    gateway_subnet_prefix             = "10.0.0.0/27"    # VPN/ER Gateway 用
-    bastion_subnet_prefix             = "10.0.1.0/26"    # Bastion 用
-    firewall_subnet_prefix            = "10.0.2.0/26"    # Azure Firewall 用 (/26 最小)
-    firewall_management_subnet_prefix = null              # 強制トンネリング時のみ必要
+    gateway_subnet_prefix             = "10.0.0.0/27" # VPN/ER Gateway 用
+    bastion_subnet_prefix             = "10.0.1.0/26" # Bastion 用
+    firewall_subnet_prefix            = "10.0.2.0/26" # Azure Firewall 用 (/26 最小)
+    firewall_management_subnet_prefix = null          # 強制トンネリング時のみ必要
     firewall_sku_tier                 = "Standard"
     firewall_threat_intel_mode        = "Deny"
   }
