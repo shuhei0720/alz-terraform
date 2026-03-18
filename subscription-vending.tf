@@ -129,7 +129,7 @@ resource "azapi_resource" "vending_vnet" {
       }
       dhcpOptions = {
         dnsServers = [
-          azurerm_private_dns_resolver_inbound_endpoint.hub[local.hub_keys[0]].ip_configuration[0].private_ip_address
+          azurerm_private_dns_resolver_inbound_endpoint.hub[local.hub_keys[0]].ip_configurations[0].private_ip_address
         ]
       }
     }
