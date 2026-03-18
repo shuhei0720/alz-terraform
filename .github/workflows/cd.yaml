@@ -13,6 +13,10 @@ on:
           - apply
           - destroy
 
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read
