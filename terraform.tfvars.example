@@ -68,3 +68,11 @@ private_dns_enabled = true
 #   "privatelink.database.windows.net",
 #   "privatelink.vaultcore.azure.net",
 # ]
+
+# =============================================================================
+# AMBA (Azure Monitor Baseline Alerts)
+# =============================================================================
+
+# グローバル通知先メールアドレス（基盤サブスクリプション + Service Health 通知）
+# Spoke サブスクリプションの担当者通知は YAML の alert_contacts で定義。
+amba_alert_email = ["platform-team@example.com"]

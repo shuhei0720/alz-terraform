@@ -25,8 +25,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout PR
         uses: actions/checkout@v4
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -41,60 +47,195 @@ jobs:
             -backend-config="container_name=${{ secrets.BACKEND_CONTAINER }}" \
             -backend-config="key=alz.terraform.tfstate"
 
-      - name: Check Lock File Consistency
-        id: lock_check
-        run: |
-          # 現在の lock file を保存
-          cp .terraform.lock.hcl lock_before.hcl
-
-          # providers を再取得して lock file を更新
-          terraform providers lock \
-            -platform=linux_amd64
-
-          # 差分を確認
-          if diff -q lock_before.hcl .terraform.lock.hcl > /dev/null 2>&1; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Lock file is consistent"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            diff lock_before.hcl .terraform.lock.hcl > lock_diff.txt || true
-            echo "Lock file has differences"
-          fi
-
       - name: Terraform Validate
         run: terraform validate
 
-      - name: Show Current Provider Versions
-        id: versions
+      - name: Analyze Provider Changes
+        id: analyze
         run: |
-          terraform version -json | tee version_output.json
-          echo "## Provider Versions" > version_report.txt
-          echo "" >> version_report.txt
-          echo '```json' >> version_report.txt
-          cat version_output.json | python3 -m json.tool >> version_report.txt
-          echo '```' >> version_report.txt
+          set -euo pipefail
+
+          # ==============================================================
+          # base と PR の lock file からプロバイダーバージョンを抽出して比較
+          # ==============================================================
+          extract_versions() {
+            local file="$1"
+            grep -E '^\s*version\s*=' "$file" | sed 's/.*= *"\(.*\)"/\1/' || true
+          }
+          extract_providers() {
+            local file="$1"
+            grep -E '^\s*"[^"]+/[^"]+/[^"]+"' "$file" | sed 's/.*"\(.*\)".*/\1/' || true
+          }
+
+          BASE_LOCK="base/.terraform.lock.hcl"
+          PR_LOCK=".terraform.lock.hcl"
+
+          # lock file が base に存在しない場合（新規追加）
+          if [[ ! -f "$BASE_LOCK" ]]; then
+            echo "status=new" >> "$GITHUB_OUTPUT"
+            echo "Lock file is newly added in this PR"
+          else
+            # プロバイダーごとにバージョン差分を生成
+            REPORT=""
+            RISK="none"
+
+            mapfile -t PR_PROVIDERS < <(extract_providers "$PR_LOCK")
+            for provider in "${PR_PROVIDERS[@]}"; do
+              BASE_VER=$(awk "/\"$provider\"/{found=1} found && /version/{print; found=0}" "$BASE_LOCK" \
+                | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+              PR_VER=$(awk "/\"$provider\"/{found=1} found && /version/{print; found=0}" "$PR_LOCK" \
+                | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+
+              if [[ -z "$BASE_VER" ]]; then
+                REPORT+="| \`$provider\` | (新規追加) | \`$PR_VER\` | 🆕 新規 |"$'\n'
+                [[ "$RISK" == "none" ]] && RISK="low"
+              elif [[ "$BASE_VER" != "$PR_VER" ]]; then
+                # SemVer 分解で変更種別を判定
+                IFS='.' read -r B_MAJ B_MIN B_PAT <<< "$BASE_VER"
+                IFS='.' read -r P_MAJ P_MIN P_PAT <<< "$PR_VER"
+                if [[ "$B_MAJ" != "$P_MAJ" ]]; then
+                  CHANGE="🔴 メジャー"; RISK="high"
+                elif [[ "$B_MIN" != "$P_MIN" ]]; then
+                  CHANGE="🟡 マイナー"; [[ "$RISK" != "high" ]] && RISK="medium"
+                else
+                  CHANGE="🟢 パッチ"; [[ "$RISK" == "none" ]] && RISK="low"
+                fi
+                REPORT+="| \`$provider\` | \`$BASE_VER\` | \`$PR_VER\` | $CHANGE |"$'\n'
+              fi
+            done
+
+            # base にあって PR から削除されたプロバイダー
+            mapfile -t BASE_PROVIDERS < <(extract_providers "$BASE_LOCK")
+            for provider in "${BASE_PROVIDERS[@]}"; do
+              if ! grep -q "\"$provider\"" "$PR_LOCK"; then
+                BASE_VER=$(awk "/\"$provider\"/{found=1} found && /version/{print; found=0}" "$BASE_LOCK" \
+                  | head -1 | sed 's/.*= *"\(.*\)"/\1/')
+                REPORT+="| \`$provider\` | \`$BASE_VER\` | (削除) | 🗑️ 削除 |"$'\n'
+                RISK="high"
+              fi
+            done
+
+            if [[ -z "$REPORT" ]]; then
+              echo "status=unchanged" >> "$GITHUB_OUTPUT"
+            else
+              echo "status=changed" >> "$GITHUB_OUTPUT"
+              echo "risk=$RISK" >> "$GITHUB_OUTPUT"
+              {
+                echo "report<<REPORT_EOF"
+                echo "$REPORT"
+                echo "REPORT_EOF"
+              } >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+          # Lock file の整合性チェック
+          cp .terraform.lock.hcl lock_before.hcl
+          terraform providers lock -platform=linux_amd64
+          if diff -q lock_before.hcl .terraform.lock.hcl > /dev/null 2>&1; then
+            echo "lock_consistent=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lock_consistent=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "lock_diff<<DIFF_EOF"
+              diff lock_before.hcl .terraform.lock.hcl || true
+              echo "DIFF_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+          # 現在のバージョン情報
+          {
+            echo "versions<<VER_EOF"
+            terraform version -json | python3 -m json.tool
+            echo "VER_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Post Report to PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const lockChanged = '${{ steps.lock_check.outputs.changed }}' === 'true';
-            const report = fs.readFileSync('version_report.txt', 'utf8');
+            const status = '${{ steps.analyze.outputs.status }}';
+            const risk = '${{ steps.analyze.outputs.risk }}';
+            const lockOk = '${{ steps.analyze.outputs.lock_consistent }}' === 'true';
+            const versions = `${{ steps.analyze.outputs.versions }}`;
 
-            let lockSection = '';
-            if (lockChanged) {
-              const diff = fs.readFileSync('lock_diff.txt', 'utf8');
-              lockSection = `### ⚠️ Lock File の差分あり\n\`\`\`diff\n${diff.substring(0, 10000)}\n\`\`\`\n\n`;
+            let sections = [];
+            sections.push('## 🔎 Dependency Check Report\n');
+
+            // ── プロバイダー変更一覧 ──
+            if (status === 'changed') {
+              const riskBadge = { high: '🔴 High', medium: '🟡 Medium', low: '🟢 Low' }[risk] || risk;
+              sections.push(`### プロバイダー変更 (リスク: ${riskBadge})\n`);
+              sections.push('| Provider | 変更前 | 変更後 | 種別 |');
+              sections.push('|----------|--------|--------|------|');
+              sections.push(`${{ steps.analyze.outputs.report }}`);
+
+              if (risk === 'high') {
+                sections.push('\n> **⚠️ メジャーバージョン変更 / プロバイダー削除が含まれています。**');
+                sections.push('> Breaking Changes がないか、必ずリリースノートを確認してください。\n');
+              }
+              if (risk === 'medium') {
+                sections.push('\n> **📝 マイナーバージョン変更**: 新機能追加やバグ修正が含まれる可能性があります。');
+                sections.push('> plan 結果に意図しない差分がないか確認してください。\n');
+              }
+            } else if (status === 'new') {
+              sections.push('### 🆕 Lock file が新規追加されました\n');
             } else {
-              lockSection = '### ✅ Lock File 整合性: OK\n\n';
+              sections.push('### ✅ プロバイダーバージョンの変更なし\n');
             }
 
-            const body = `#### 🔎 Dependency Check Report\n\n${lockSection}${report}\n\n*Triggered by @${{ github.actor }}*`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body.substring(0, 65536)
+            // ── Lock file 整合性 ──
+            if (lockOk) {
+              sections.push('### ✅ Lock File 整合性: OK\n');
+            } else {
+              sections.push('### ⚠️ Lock File の不整合あり\n');
+              sections.push('Lock file のハッシュが再生成と一致しません。');
+              sections.push('`terraform providers lock -platform=linux_amd64` を実行して再コミットしてください。\n');
+              const diff = `${{ steps.analyze.outputs.lock_diff }}`;
+              if (diff) {
+                sections.push('<details><summary>差分を表示</summary>\n');
+                sections.push('```diff');
+                sections.push(diff.substring(0, 10000));
+                sections.push('```\n</details>\n');
+              }
+            }
+
+            // ── レビューチェックリスト ──
+            if (status === 'changed') {
+              sections.push('### 📋 レビューチェックリスト\n');
+              sections.push('- [ ] リリースノート / CHANGELOG の確認');
+              sections.push('- [ ] `terraform plan` の差分に想定外の変更がないか');
+              sections.push('- [ ] `terraform.tf` のバージョン制約と lock file の整合性');
+              if (risk === 'high') {
+                sections.push('- [ ] Breaking Changes の影響範囲を確認');
+                sections.push('- [ ] ロールバック手順を準備');
+              }
+              sections.push('');
+            }
+
+            // ── バージョン情報 ──
+            sections.push('<details><summary>📦 Provider Versions (詳細)</summary>\n');
+            sections.push('```json');
+            sections.push(versions);
+            sections.push('```\n</details>\n');
+
+            sections.push(`*Triggered by @${{ github.actor }}*`);
+            const body = sections.join('\n');
+
+            // 既存の Dependency Check コメントを更新（重複回避）
+            const { owner, repo } = context.repo;
+            const marker = '## 🔎 Dependency Check Report';
+            const comments = await github.rest.issues.listComments({
+              owner, repo, issue_number: context.issue.number, per_page: 100
             });
+            const existing = comments.data.find(c => c.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body: body.substring(0, 65536)
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: context.issue.number, body: body.substring(0, 65536)
+              });
+            }
