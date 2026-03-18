@@ -33,5 +33,8 @@ resource "azurerm_resource_group" "amba" {
   provider = azurerm.management
   name     = "rg-amba-alerts-${var.primary_location}"
   location = var.primary_location
-  tags     = var.tags
+  tags     = {
+    SHAPolicy_RG      = "true"
+    _deployed_by_amba = "true"
+  }
 }
