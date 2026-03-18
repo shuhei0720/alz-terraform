@@ -330,6 +330,7 @@ policy_default_values = {
 
 新しいサブスクリプション（= ワークロード環境）を追加するとき、YAML ファイルを 1 つ置くだけで必要なネットワークリソースがすべて自動作成されます。
 以下のドキュメントを参考に実装しています。
+
 [参考：サブスクリプションの自動販売の実装ガイダンス](https://learn.microsoft.com/ja-jp/azure/architecture/landing-zones/subscription-vending)
 
 ### 手順
