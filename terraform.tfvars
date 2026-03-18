@@ -33,14 +33,16 @@ sentinel_enabled             = true
 
 hub_virtual_networks = {
   primary = {
-    location                          = "japaneast"
-    address_space                     = ["10.0.0.0/16"]
-    gateway_subnet_prefix             = "10.0.0.0/27" # VPN/ER Gateway 用
-    bastion_subnet_prefix             = "10.0.1.0/26" # Bastion 用
-    firewall_subnet_prefix            = "10.0.2.0/26" # Azure Firewall 用 (/26 最小)
-    firewall_management_subnet_prefix = null          # 強制トンネリング時のみ必要
-    firewall_sku_tier                 = "Standard"
-    firewall_threat_intel_mode        = "Deny"
+    location                            = "japaneast"
+    address_space                       = ["10.0.0.0/16"]
+    gateway_subnet_prefix               = "10.0.0.0/27" # VPN/ER Gateway 用
+    bastion_subnet_prefix               = "10.0.1.0/26" # Bastion 用
+    firewall_subnet_prefix              = "10.0.2.0/26" # Azure Firewall 用 (/26 最小)
+    firewall_management_subnet_prefix   = null          # 強制トンネリング時のみ必要
+    dns_resolver_inbound_subnet_prefix  = "10.0.3.0/26" # DNSインバウンドエンドポイント用
+    dns_resolver_outbound_subnet_prefix = "10.0.4.0/26" # DNSアウトバウンドエンドポイント用
+    firewall_sku_tier                   = "Standard"
+    firewall_threat_intel_mode          = "Deny"
   }
   # セカンダリリージョンが必要な場合はコメントを解除
   # secondary = {
@@ -50,6 +52,8 @@ hub_virtual_networks = {
   #   bastion_subnet_prefix             = "10.1.1.0/26"
   #   firewall_subnet_prefix            = "10.1.2.0/26"
   #   firewall_management_subnet_prefix = null
+  #   dns_resolver_inbound_subnet_prefix = "10.1.3.0/26"
+  #   dns_resolver_outbound_subnet_prefix = "10.1.4.0/26"
   #   firewall_sku_tier                 = "Standard"
   #   firewall_threat_intel_mode        = "Deny"
   # }

@@ -72,14 +72,16 @@ variable "sentinel_enabled" {
 variable "hub_virtual_networks" {
   description = "Hub VNet の設定マップ（キー名は任意、例: primary, secondary）"
   type = map(object({
-    location                          = string
-    address_space                     = list(string)
-    gateway_subnet_prefix             = optional(string)
-    bastion_subnet_prefix             = optional(string)
-    firewall_subnet_prefix            = optional(string)
-    firewall_management_subnet_prefix = optional(string)
-    firewall_sku_tier                 = optional(string, "Standard")
-    firewall_threat_intel_mode        = optional(string, "Deny")
+    location                            = string
+    address_space                       = list(string)
+    gateway_subnet_prefix               = optional(string)
+    bastion_subnet_prefix               = optional(string)
+    firewall_subnet_prefix              = optional(string)
+    firewall_management_subnet_prefix   = optional(string)
+    dns_resolver_inbound_subnet_prefix  = optional(string)
+    dns_resolver_outbound_subnet_prefix = optional(string)
+    firewall_sku_tier                   = optional(string, "Standard")
+    firewall_threat_intel_mode          = optional(string, "Deny")
     express_route = optional(object({
       service_provider_name = optional(string, "Equinix")
       peering_location      = optional(string, "Tokyo")

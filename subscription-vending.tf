@@ -127,10 +127,18 @@ resource "azapi_resource" "vending_vnet" {
       addressSpace = {
         addressPrefixes = local.subscriptions[each.key].virtual_network.address_space
       }
+      dhcpOptions = {
+        dnsServers = [
+          azurerm_private_dns_resolver_inbound_endpoint.hub[local.hub_keys[0]].ip_configuration[0].private_ip_address
+        ]
+      }
     }
   }
 
-  depends_on = [azapi_resource.vending_resource_groups]
+  depends_on = [
+    azapi_resource.vending_resource_groups,
+    azurerm_private_dns_resolver_inbound_endpoint.hub
+  ]
 }
 
 # =============================================================================

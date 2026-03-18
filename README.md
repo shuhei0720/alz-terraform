@@ -584,7 +584,7 @@ hub_virtual_networks = {
 
 ```bash
 # ローカル state（テスト用）
-terraform init -backend=false
+terraform init -backend-config=false
 
 # リモート stateでストレージアカウントを使う場合。テストでローカルstateを使う場合は不要。
 terraform init \
