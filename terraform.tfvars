@@ -24,7 +24,7 @@ tags = {
 # Management Resources
 # =============================================================================
 
-log_analytics_retention_days = 30
+log_analytics_retention_days = 360
 sentinel_enabled             = true
 
 # =============================================================================

@@ -15,6 +15,12 @@
 #   - ルートテーブル（Firewall 経由、BGP 伝搬無効）
 #   - Hub VNet へのピアリング（双方向）
 #
+# Spoke リソースの委任:
+#   Spoke サブスクリプション内のリソース（RG, VNet, NSG, RT, Subnet, AG, ARP）は
+#   初回 apply でベースラインを作成した後、lifecycle { ignore_changes = all } により
+#   以降の apply ではドリフトを検知・修正しません。Spoke チームが自由に変更できます。
+#   ピアリングと Hub 側ルートはプラットフォーム管理のため引き続き追跡対象です。
+#
 # =============================================================================
 
 # --- YAML ファイルの読み込み ---
@@ -93,6 +99,18 @@ locals {
       }
     ] if try(sub.virtual_network.hub_peering_enabled, false)
   ])
+
+  # alert_contacts が定義されている Spoke サブスクリプション（アラートルーティング用）
+  vending_with_alerts = {
+    for sub_key, sub in local.subscriptions : sub_key => {
+      sub_id         = sub.subscription_id
+      display_name   = sub.display_name
+      location       = sub.location
+      alert_contacts = sub.alert_contacts
+      short_name     = substr(replace(sub_key, "-", ""), 0, 12)
+    }
+    if try(length(sub.alert_contacts), 0) > 0
+  }
 }
 
 # =============================================================================
@@ -107,6 +125,8 @@ resource "azapi_resource" "vending_resource_groups" {
   parent_id = "/subscriptions/${each.value.sub_id}"
   location  = each.value.location
   tags      = each.value.tags
+
+  lifecycle { ignore_changes = all }
 }
 
 # =============================================================================
@@ -139,6 +159,8 @@ resource "azapi_resource" "vending_vnet" {
     azapi_resource.vending_resource_groups,
     azurerm_private_dns_resolver_inbound_endpoint.hub
   ]
+
+  lifecycle { ignore_changes = all }
 }
 
 # =============================================================================
@@ -161,6 +183,8 @@ resource "azapi_resource" "vending_nsgs" {
   }
 
   depends_on = [azapi_resource.vending_resource_groups]
+
+  lifecycle { ignore_changes = all }
 }
 
 # =============================================================================
@@ -193,6 +217,8 @@ resource "azapi_resource" "vending_route_table" {
   }
 
   depends_on = [azapi_resource.vending_resource_groups]
+
+  lifecycle { ignore_changes = all }
 }
 
 # =============================================================================
@@ -227,6 +253,8 @@ resource "azapi_resource" "vending_subnets" {
     interval_seconds     = 10
     max_interval_seconds = 60
   }
+
+  lifecycle { ignore_changes = all }
 }
 
 # =============================================================================
@@ -305,4 +333,86 @@ resource "azurerm_route" "gateway_to_vending" {
   address_prefix         = each.value.address_prefix
   next_hop_type          = "VirtualAppliance"
   next_hop_in_ip_address = azurerm_firewall.hub[local.hub_keys[0]].ip_configuration[0].private_ip_address
+}
+
+# =============================================================================
+# Spoke サブスクリプション別アラート通知（Action Group + Alert Processing Rule）
+# =============================================================================
+#
+# YAML の alert_contacts に通知先を定義すると、払い出し時に以下を自動作成:
+#   1. リソースグループ（Spoke サブスクリプション内）
+#   2. Action Group（通知先メールアドレス）
+#   3. Alert Processing Rule（スコープ = Spoke サブスクリプション全体）
+#
+# ARP は同一サブスクリプション内のリソースしかスコープにできないため、
+# AG・ARP ともに Spoke サブスクリプション側に配置します。
+#
+# 基盤サブスクリプション（management, connectivity, identity, security）は
+# AMBA デフォルト AG（amba_alert_email）で通知されるため対象外です。
+# =============================================================================
+
+resource "azapi_resource" "spoke_amba_rg" {
+  for_each = local.vending_with_alerts
+
+  type      = "Microsoft.Resources/resourceGroups@2024-03-01"
+  name      = "rg-amba-alerts-${each.value.location}"
+  parent_id = "/subscriptions/${each.value.sub_id}"
+  location  = each.value.location
+  tags = {
+    _deployed_by_amba = "true"
+  }
+
+  lifecycle { ignore_changes = all }
+}
+
+resource "azapi_resource" "spoke_action_group" {
+  for_each = local.vending_with_alerts
+
+  type      = "Microsoft.Insights/actionGroups@2023-01-01"
+  name      = "ag-amba-${each.key}"
+  parent_id = azapi_resource.spoke_amba_rg[each.key].id
+  location  = "global"
+  tags      = var.tags
+
+  body = {
+    properties = {
+      groupShortName = each.value.short_name
+      enabled        = true
+      emailReceivers = [
+        for contact in each.value.alert_contacts : {
+          name                 = contact.name
+          emailAddress         = contact.email_address
+          useCommonAlertSchema = true
+        }
+      ]
+    }
+  }
+
+  lifecycle { ignore_changes = all }
+}
+
+resource "azapi_resource" "spoke_alert_processing_rule" {
+  for_each = local.vending_with_alerts
+
+  type      = "Microsoft.AlertsManagement/actionRules@2021-08-08"
+  name      = "apr-amba-${each.key}"
+  parent_id = azapi_resource.spoke_amba_rg[each.key].id
+  location  = "global"
+  tags      = var.tags
+
+  body = {
+    properties = {
+      description = "${each.value.display_name} のアラートを ag-amba-${each.key} にルーティング"
+      enabled     = true
+      scopes      = ["/subscriptions/${each.value.sub_id}"]
+      actions = [
+        {
+          actionType     = "AddActionGroups"
+          actionGroupIds = [azapi_resource.spoke_action_group[each.key].id]
+        }
+      ]
+    }
+  }
+
+  lifecycle { ignore_changes = all }
 }
