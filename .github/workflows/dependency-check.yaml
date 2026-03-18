@@ -1,0 +1,100 @@
+name: Dependency Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".terraform.lock.hcl"
+      - "terraform.tf"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_USE_OIDC: true
+
+jobs:
+  check:
+    name: Validate Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.BACKEND_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.BACKEND_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.BACKEND_CONTAINER }}" \
+            -backend-config="key=alz.terraform.tfstate"
+
+      - name: Check Lock File Consistency
+        id: lock_check
+        run: |
+          # 現在の lock file を保存
+          cp .terraform.lock.hcl lock_before.hcl
+
+          # providers を再取得して lock file を更新
+          terraform providers lock \
+            -platform=linux_amd64
+
+          # 差分を確認
+          if diff -q lock_before.hcl .terraform.lock.hcl > /dev/null 2>&1; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Lock file is consistent"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            diff lock_before.hcl .terraform.lock.hcl > lock_diff.txt || true
+            echo "Lock file has differences"
+          fi
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Show Current Provider Versions
+        id: versions
+        run: |
+          terraform version -json | tee version_output.json
+          echo "## Provider Versions" > version_report.txt
+          echo "" >> version_report.txt
+          echo '```json' >> version_report.txt
+          cat version_output.json | python3 -m json.tool >> version_report.txt
+          echo '```' >> version_report.txt
+
+      - name: Post Report to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const lockChanged = '${{ steps.lock_check.outputs.changed }}' === 'true';
+            const report = fs.readFileSync('version_report.txt', 'utf8');
+
+            let lockSection = '';
+            if (lockChanged) {
+              const diff = fs.readFileSync('lock_diff.txt', 'utf8');
+              lockSection = `### ⚠️ Lock File の差分あり\n\`\`\`diff\n${diff.substring(0, 10000)}\n\`\`\`\n\n`;
+            } else {
+              lockSection = '### ✅ Lock File 整合性: OK\n\n';
+            }
+
+            const body = `#### 🔎 Dependency Check Report\n\n${lockSection}${report}\n\n*Triggered by @${{ github.actor }}*`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body.substring(0, 65536)
+            });
