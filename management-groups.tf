@@ -116,7 +116,7 @@ resource "time_sleep" "wait_for_mg_rbac" {
     azurerm_management_group.sandbox,
     azurerm_management_group.decommissioned,
   ]
-  create_duration = "120s"
+  create_duration = "240s"
 }
 
 # =============================================================================
