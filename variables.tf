@@ -208,7 +208,7 @@ variable "private_dns_zones" {
 # =============================================================================
 
 variable "amba_alert_email" {
-  description = "AMBA アラート通知先メールアドレスのリスト（空リストの場合はメール通知なし）"
+  description = "AMBA アラート通知先メールアドレスのリスト（基盤サブスクリプション向け + Service Health 通知）"
   type        = list(string)
   default     = []
 }

@@ -128,7 +128,7 @@ data "alz_architecture" "this" {
 
     amba_alz_action_group_email = jsonencode({
       value = var.amba_alert_email
-    }) # Array type
+    })
 
     amba_alz_user_assigned_managed_identity_name = jsonencode({
       value = "uami-amba-${var.primary_location}"

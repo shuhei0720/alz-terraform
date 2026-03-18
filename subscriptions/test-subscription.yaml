@@ -9,6 +9,12 @@ tags:
   cost_center: "test-12345"
   owner: "platform-team"
 
+alert_contacts:
+  - name: "Test Owner"
+    email_address: "test-owner@example.com"
+  - name: "Test On-Call"
+    email_address: "test-oncall@example.com"
+
 resource_groups:
   network:
     name: "rg-test-network"

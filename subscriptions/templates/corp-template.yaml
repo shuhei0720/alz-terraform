@@ -30,6 +30,13 @@ tags:
   owner: "<所有チーム名>"
   system_name: "<システム名>"
 
+# アラート通知先（このサブスクリプションのアラートを受信する担当者）
+alert_contacts:
+  - name: "<担当者名>"
+    email_address: "<メールアドレス>"
+  - name: "<担当者名>"
+    email_address: "<メールアドレス>"
+
 resource_groups:
   network:
     name: "rg-<システム名>-network"
