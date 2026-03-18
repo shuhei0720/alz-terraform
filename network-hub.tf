@@ -419,7 +419,7 @@ resource "azurerm_private_dns_resolver" "hub" {
   virtual_network_id  = azurerm_virtual_network.hub[each.key].id
 
   tags = var.tags
-  depends = [
+  depends_on = [
     time_sleep.pdr_wait_after_vnet
   ]
 }
@@ -439,7 +439,7 @@ resource "azurerm_private_dns_resolver_inbound_endpoint" "hub" {
   }
 
   tags = var.tags
-  depends = [
+  depends_on = [
     time_sleep.pdr_wait_after_vnet
   ]
 }
@@ -456,7 +456,7 @@ resource "azurerm_private_dns_resolver_outbound_endpoint" "hub" {
   subnet_id               = azurerm_subnet.dns_resolver_outbound[each.key].id
 
   tags = var.tags
-  depends = [
+  depends_on = [
     time_sleep.pdr_wait_after_vnet
   ]
 }
@@ -474,7 +474,7 @@ resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
   private_dns_resolver_outbound_endpoint_ids = [azurerm_private_dns_resolver_outbound_endpoint.hub[each.key].id]
 
   tags = var.tags
-  depends = [
+  depends_on = [
     time_sleep.pdr_wait_after_vnet
   ]
 }
