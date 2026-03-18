@@ -64,6 +64,30 @@ resource "azurerm_subnet" "firewall_management" {
   address_prefixes     = [each.value.firewall_management_subnet_prefix]
 }
 
+# InboundEndpointSubnet — プライベートDNSリゾルバ インバウンドエンドポイント用
+resource "azurerm_subnet" "dns_resolver_inbound" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v if v.dns_resolver_inbound_subnet_prefix != null
+  }
+  provider             = azurerm.connectivity
+  name                 = "InboundEndpointSubnet"
+  resource_group_name  = azurerm_resource_group.hub[each.key].name
+  virtual_network_name = azurerm_virtual_network.hub[each.key].name
+  address_prefixes       = [each.value.dns_resolver_inbound_subnet_prefix]
+}
+
+# OutboundEndpointSubnet — プライベートDNSリゾルバ アウトバウンドエンドポイント用
+resource "azurerm_subnet" "dns_resolver_outbound" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v if v.dns_resolver_inbound_subnet_prefix != null
+  }
+  provider             = azurerm.connectivity
+  name                 = "OutboundEndpointSubnet"
+  resource_group_name  = azurerm_resource_group.hub[each.key].name
+  virtual_network_name = azurerm_virtual_network.hub[each.key].name
+  address_prefixes       = [each.value.dns_resolver_outbound_subnet_prefix]
+}
+
 # =============================================================================
 # Azure Firewall Policy
 # =============================================================================
@@ -366,6 +390,70 @@ resource "azurerm_bastion_host" "hub" {
     subnet_id            = azurerm_subnet.bastion[each.key].id
     public_ip_address_id = azurerm_public_ip.bastion[each.key].id
   }
+
+  tags = var.tags
+}
+
+# =============================================================================
+# Private DNS Resolver
+# =============================================================================
+
+resource "azurerm_private_dns_resolver" "hub" {
+  for_each = {
+    for k, v in var.hub_virtual_networks :
+    k => v if v.dns_resolver_inbound_subnet_prefix != null && v.dns_resolver_outbound_subnet_prefix != null
+  }
+  provider            = azurerm.connectivity
+  name                = "pdr-hub-${each.value.location}"
+  resource_group_name = azurerm_resource_group.hub[each.key].name
+  location            = each.value.location
+  virtual_network_id  = azurerm_virtual_network.hub[each.key].id
+
+  tags = var.tags
+}
+
+resource "azurerm_private_dns_resolver_inbound_endpoint" "hub" {
+  for_each = {
+    for k, v in var.hub_virtual_networks :
+    k => v if v.dns_resolver_inbound_subnet_prefix != null
+  }
+  provider                = azurerm.connectivity
+  name                    = "pdr-inbound-${each.value.location}"
+  location                = each.value.location
+  private_dns_resolver_id = azurerm_private_dns_resolver.hub[each.key].id
+  ip_configurations {
+    private_ip_allocation_method = "Dynamic"
+    subnet_id                    = azurerm_subnet.dns_resolver_inbound[each.key].id
+  }
+
+  tags = var.tags
+}
+
+resource "azurerm_private_dns_resolver_outbound_endpoint" "hub" {
+  for_each = {
+    for k, v in var.hub_virtual_networks :
+    k => v if v.dns_resolver_inbound_subnet_prefix != null
+  }
+  provider                = azurerm.connectivity
+  name                    = "pdr-outbound-${each.value.location}"
+  location                = each.value.location
+  private_dns_resolver_id = azurerm_private_dns_resolver.hub[each.key].id
+  subnet_id               = azurerm_subnet.dns_resolver_outbound[each.key].id
+
+  tags = var.tags
+}
+
+resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
+  for_each = {
+    for k, v in var.hub_virtual_networks :
+    k => v if v.dns_resolver_outbound_subnet_prefix != null
+  }
+  provider            = azurerm.connectivity
+  name                = "pdr-ruleset-${each.value.location}"
+  resource_group_name = azurerm_resource_group.hub[each.key].name
+  location            = each.value.location
+
+  private_dns_resolver_outbound_endpoint_ids = [azurerm_private_dns_resolver_outbound_endpoint.hub[each.key].id]
 
   tags = var.tags
 }
