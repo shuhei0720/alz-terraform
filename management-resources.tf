@@ -81,9 +81,9 @@ resource "azapi_resource" "dcr_vm_insights" {
       dataSources = {
         performanceCounters = [
           {
-            name                        = "perfCounterDataSource"
-            streams                     = ["Microsoft-Perf", "Microsoft-InsightsMetrics"]
-            samplingFrequencyInSeconds   = 60
+            name                       = "perfCounterDataSource"
+            streams                    = ["Microsoft-Perf", "Microsoft-InsightsMetrics"]
+            samplingFrequencyInSeconds = 60
             counterSpecifiers = [
               "\\Processor Information(_Total)\\% Processor Time",
               "\\Memory\\Available Bytes",

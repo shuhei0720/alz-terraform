@@ -128,7 +128,7 @@ data "alz_architecture" "this" {
 
     amba_alz_action_group_email = jsonencode({
       value = var.amba_alert_email
-    })  # Array type
+    }) # Array type
 
     amba_alz_user_assigned_managed_identity_name = jsonencode({
       value = "uami-amba-${var.primary_location}"
@@ -245,7 +245,7 @@ locals {
         : pra.role_definition_id
       )
       scope = pra.scope
-    } if(
+      } if(
       !strcontains(pra.scope, "00000000-0000-0000-0000-000000000000") &&
       !strcontains(pra.scope, "changeme") &&
       !(
@@ -306,8 +306,8 @@ resource "azapi_resource" "alz_policy_assignments" {
   location  = var.primary_location
   body = {
     properties = {
-      description    = lookup(each.value.assignment.properties, "description", null)
-      displayName    = lookup(each.value.assignment.properties, "displayName", null)
+      description     = lookup(each.value.assignment.properties, "description", null)
+      displayName     = lookup(each.value.assignment.properties, "displayName", null)
       enforcementMode = lookup(each.value.assignment.properties, "enforcementMode", null)
       metadata = merge(
         lookup(each.value.assignment.properties, "metadata", {}),

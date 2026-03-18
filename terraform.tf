@@ -52,9 +52,9 @@ provider "azurerm" {
 
 # Management サブスクリプション — Log Analytics, Sentinel, UAMI, DCR
 provider "azurerm" {
-  alias                          = "management"
+  alias                           = "management"
   resource_provider_registrations = "none"
-  subscription_id                = var.subscription_ids["management"]
+  subscription_id                 = var.subscription_ids["management"]
   features {
     resource_group {
       prevent_deletion_if_contains_resources = false
@@ -64,9 +64,9 @@ provider "azurerm" {
 
 # Connectivity サブスクリプション — Hub VNet, DNS, ネットワーク関連
 provider "azurerm" {
-  alias                          = "connectivity"
+  alias                           = "connectivity"
   resource_provider_registrations = "none"
-  subscription_id                = var.subscription_ids["connectivity"]
+  subscription_id                 = var.subscription_ids["connectivity"]
   features {
     resource_group {
       prevent_deletion_if_contains_resources = false
