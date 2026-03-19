@@ -70,13 +70,17 @@ variable "sentinel_enabled" {
 # =============================================================================
 
 variable "active_hub_key" {
-  description = "Spoke が接続する Hub VNet のキー名。DR 時にセカンダリへ一括切り替え可能"
+  description = <<-EOT
+    DR 一括切替用の Hub キー。
+    null（デフォルト）= 各 Spoke YAML の virtual_network.hub_key に従ってピアリング先を決定。
+    値を指定すると全 Spoke を強制的にそのHub へ切り替え（DR オーバーライド）。
+  EOT
   type        = string
-  default     = "primary"
+  default     = null
 
   validation {
-    condition     = contains(keys(var.hub_virtual_networks), var.active_hub_key)
-    error_message = "active_hub_key は hub_virtual_networks のキー名と一致する必要があります。"
+    condition     = var.active_hub_key == null || contains(keys(var.hub_virtual_networks), var.active_hub_key)
+    error_message = "active_hub_key は null または hub_virtual_networks のキー名と一致する必要があります。"
   }
 }
 

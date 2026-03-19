@@ -50,6 +50,7 @@ resource_groups:
     location: "japaneast"
 
 virtual_network:
+  hub_key: "primary"                      # ピアリング先 Hub キー（hub_virtual_networks のキー名）
   name: "vnet-<システム名>"
   resource_group_name: "rg-<システム名>-network"
   address_space: ["<例: 10.210.0.0/16>"]
