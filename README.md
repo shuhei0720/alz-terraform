@@ -787,7 +787,24 @@ virtual_network:
 | オンプレ接続 | あり（ER Gateway 経由） | なし |
 | 適用されるポリシー | 社内向けセキュリティ | インターネット公開向け |
 
+### サブスクリプション Vending のトラブルシューティング
 
+#### エイリアス競合（Alias already exists）
+
+サブスクリプションを一度作成した後、State から削除して再作成しようとするとエイリアス競合エラーが発生します。
+
+```
+│ Error: creating Subscription (Alias "alz-my-system"): unexpected status 409 (409 Conflict)
+```
+
+**対処法**: YAML に `subscription_id` を記載して既存利用モードに切り替えてください。
+
+```yaml
+# subscriptions/my-system.yaml
+subscription_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # ← 作成済みサブスクリプションの ID を記載
+```
+
+これにより `azurerm_subscription` での新規作成をスキップし、既存サブスクリプションをそのまま利用します。
 
 ---
 

@@ -29,6 +29,7 @@ resource "azurerm_resource_group" "dns" {
 }
 
 # Management サブスクリプション: AMBA アラート基盤用
+# AMBA ポリシーが動的にタグを追加するため、tags のドリフトを無視
 resource "azurerm_resource_group" "amba" {
   provider = azurerm.management
   name     = "rg-amba-alerts-${var.primary_location}"
@@ -37,4 +38,6 @@ resource "azurerm_resource_group" "amba" {
     SHAPolicy_RG      = "true"
     _deployed_by_amba = "true"
   }
+
+  lifecycle { ignore_changes = [tags] }
 }
