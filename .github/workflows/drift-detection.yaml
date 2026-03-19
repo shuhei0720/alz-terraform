@@ -51,6 +51,7 @@ jobs:
         id: plan
         run: |
           set +e
+          # -detailed-exitcode: 0=変更なし, 1=エラー, 2=変更あり（ドリフト）
           terraform plan -no-color -input=false -lock-timeout=60m -detailed-exitcode 2>&1 | tee plan_output.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
         continue-on-error: true
