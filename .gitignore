@@ -1,8 +1,10 @@
 # Terraform
 .terraform/
+.alzlib/
 *.tfstate
 *.tfstate.*
 *.tfplan
+plan-output.txt
 crash.log
 crash.*.log
 override.tf

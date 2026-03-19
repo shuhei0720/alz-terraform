@@ -18,7 +18,7 @@ provider "alz" {
   library_references = [
     {
       path = "platform/alz"
-      ref  = "2026.01.2"
+      ref  = "2026.01.3"
     },
     {
       path = "platform/amba"
