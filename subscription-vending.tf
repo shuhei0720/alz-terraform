@@ -422,7 +422,7 @@ resource "azapi_resource" "vending_spoke_to_hub" {
   # (ChangingRemoteVirtualNetworkNotAllowed)。active_hub_key 切替時に
   # 自動で delete → recreate させる。
   lifecycle {
-    replace_triggered_by = [azurerm_virtual_network.hub[var.active_hub_key].id]
+    replace_triggered_by = [terraform_data.active_hub_trigger]
   }
 }
 
