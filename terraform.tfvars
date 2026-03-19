@@ -64,16 +64,32 @@ active_hub_key = "primary"
 # =============================================================================
 # DNS
 # =============================================================================
-
-private_dns_enabled = true
-
-# デフォルトで主要な Azure Private Link DNS ゾーンが含まれます。
-# カスタマイズする場合は以下のように指定:
-# private_dns_zones = [
-#   "privatelink.blob.core.windows.net",
-#   "privatelink.database.windows.net",
-#   "privatelink.vaultcore.azure.net",
-# ]
+# Private DNS はデフォルトで有効。無効化する場合は 以下をコメント解除。
+# private_dns_enabled = false
+#
+# デフォルトで 56 個の Azure Private Link DNS ゾーンが作成されます。
+# ゾーン一覧は variables.tf の private_dns_zones を参照。
+#
+# カスタマイズ例:
+#
+#   1. ゾーンを追加する場合:
+#      variables.tf の private_dns_zones の default リストに追加してください。
+#
+#   2. 特定のゾーンだけ使う場合:
+#      全デフォルトを上書きしたい場合のみ、ここで private_dns_zones を指定。
+#      private_dns_zones = [
+#        "privatelink.blob.core.windows.net",
+#        "privatelink.database.windows.net",
+#        "privatelink.vaultcore.azure.net",
+#      ]
+#
+#   3. リージョン固有ゾーンについて:
+#      以下の 4 ゾーンは japaneast 固有です。
+#      primary_location を変更する場合は variables.tf で置換が必要です。
+#        - privatelink.japaneast.azmk8s.io
+#        - privatelink.japaneast.kusto.windows.net
+#        - privatelink.jpe.backup.windowsazure.com
+#        - japaneast.data.privatelink.azurecr.io
 
 # =============================================================================
 # AMBA (Azure Monitor Baseline Alerts)

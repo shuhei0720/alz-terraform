@@ -82,59 +82,52 @@ jobs:
               });
             }
 
+      - name: Build Issue Body
+        id: issue_body
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          set -euo pipefail
+
+          PLAN=$(cat plan_output.txt)
+          if [[ ${#PLAN} -gt 60000 ]]; then
+            PLAN="${PLAN:0:30000}"$'\n\n'"... (truncated) ..."$'\n\n'"${PLAN: -30000}"
+          fi
+
+          export PLAN_OUTPUT="$PLAN"
+          export DETECTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BODY=$(envsubst '${PLAN_OUTPUT} ${DETECTED_AT} ${RUN_URL}' < .github/ISSUE_TEMPLATE/drift-detection-body.md)
+
+          {
+            echo "body<<DRIFT_BODY_EOF"
+            echo "$BODY"
+            echo "DRIFT_BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create or Update Issue (Drift Detected)
         if: steps.plan.outputs.exitcode == '2'
         uses: actions/github-script@v7
+        env:
+          ISSUE_BODY: ${{ steps.issue_body.outputs.body }}
         with:
           script: |
-            const fs = require('fs');
-            let plan = fs.readFileSync('plan_output.txt', 'utf8');
-            if (plan.length > 60000) {
-              plan = plan.substring(0, 30000) + '\n\n... (truncated) ...\n\n' + plan.substring(plan.length - 30000);
-            }
+            const body = process.env.ISSUE_BODY;
+            const { owner, repo } = context.repo;
+            const label = 'drift-detected';
 
-            const body = `## 🔍 構成ドリフトを検知しました
-
-            Terraform の state と実際の Azure インフラに差分があります。
-            手動変更やAzure側の自動更新が原因の可能性があります。
-
-            ### Plan 出力
-            \`\`\`
-            ${plan}
-            \`\`\`
-
-            ### 対処方法
-            - **意図した変更の場合**: Terraform コードを更新して PR を作成してください
-            - **意図しない変更の場合**: \`terraform apply\` で state と一致させてください
-            - **一時的な差分の場合**: 次回の検知で自動クローズされます
-
-            *検知日時: ${new Date().toISOString()}*
-            *Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}*`.replace(/^            /gm, '');
-
-            // 既存の open Issue を検索
             const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: 'drift-detected',
-              state: 'open',
+              owner, repo, labels: label, state: 'open',
             });
 
             if (issues.data.length > 0) {
-              // 既存 Issue を更新
               await github.rest.issues.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issues.data[0].number,
-                body: body,
+                owner, repo, issue_number: issues.data[0].number, body,
               });
             } else {
-              // 新規 Issue を作成
               await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner, repo,
                 title: '🔍 構成ドリフト検知',
-                body: body,
-                labels: ['drift-detected'],
+                body, labels: [label],
               });
             }
 
