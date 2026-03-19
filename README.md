@@ -222,6 +222,44 @@ ExpressRoute は、オンプレミスネットワークと Azure を専用線で
 
 [参考：Azure ExpressRoute とは](https://learn.microsoft.com/ja-jp/azure/expressroute/expressroute-introduction)
 
+#### オンプレミス接続の手順
+
+本構成で作成される ER Circuit と ER Gateway は「箱」だけです。実際にオンプレミスと接続する際の手順は以下のとおりです。
+
+| ステップ | 作業場所 | 内容 |
+|:---|:---|:---|
+| 1. 回線プロバイダー契約 | Azure Portal + キャリア | ER Circuit の Service Key を取得し、通信キャリア（NTT, KDDI 等）に提供。キャリア側で物理回線を開通 |
+| 2. プライベートピアリング構成 | Azure Portal / キャリア | BGP ピアリング（ASN、/30 サブネット）を設定 |
+| 3. Connection 作成 | **Terraform** | `connection_enabled = true` に変更して `terraform apply` |
+
+```hcl
+# terraform.tfvars — キャリア開通後にフラグを有効化
+hub_virtual_networks = {
+  primary = {
+    # ... 既存設定 ...
+    express_route = {
+      connection_enabled = true   # ← これを追加
+    }
+  }
+}
+```
+
+ステップ 1・2 は Azure Portal / キャリア側の作業ですが、ステップ 3 の Connection は Terraform で管理します。
+これにより、接続状態が IaC として記録され、コードレビューが可能です。
+
+#### DR 時の復元手順
+
+DR（全リソース再構築）の場合、ER Circuit が新規作成されるため **Service Key が変わります**。
+そのため、以下の 2 段階デプロイが必要です。
+
+| ステップ | 操作 | 理由 |
+|:---|:---|:---|
+| 1. `connection_enabled = false` で apply | Circuit + Gateway を再作成 | 新しい Circuit はキャリア未接続のため Connection は作れない |
+| 2. キャリアに Service Key を再提供 | キャリア側で回線を再開通 | 新しい Service Key で再プロビジョニング |
+| 3. `connection_enabled = true` で apply | Connection を作成 | キャリア開通後に Gateway と Circuit をリンク |
+
+> **注意**: `connection_enabled = true` のまま全 DR を実行すると、キャリア未接続の Circuit に対して Connection を作成しようとしてエラーになります。DR 時は必ず `false` から開始してください。
+
 ### ルートテーブルの設計
 
 | ルートテーブル | 対象 | BGP 伝搬 | 主なルート |
@@ -263,10 +301,104 @@ Spoke環境で共通サービスを使うためのデフォルト穴あけルー
 | **コンテナ** | Application | Defender for Containers, AKS FQDN Tag |
 | **証明書** | Application | Amazon Trust (Office365 証明書チェーン) |
 
+#### ルール管理の設計
+
+Azure Firewall Policy は 3 階層でルールを管理します。
+
+```
+Firewall Policy
+├── Rule Collection Group (RCG)     ← ルール種別で分離（Network / Application）
+│   ├── Rule Collection (RC)        ← サブスクリプション単位で自動生成
+│   │   └── Rule                    ← 個別の許可・拒否ルール
+│   └── Rule Collection
+└── Rule Collection Group
+```
+
+##### 分離方針：RCG はルール種別、RC はサブスクリプション単位
+
+Terraform では **RCG が 1 つのリソース**（`azurerm_firewall_policy_rule_collection_group`）です。
+RCG 内の RC はすべてインラインで定義されるため、1 つの RC を変更すると RCG 全体が更新対象になります。
+
+ただし、RCG の更新は **Azure 側でアトミックに適用** されるため、**通信断は発生しません**。
+既存のルールは新しいルールが反映されるまで有効です。Terraform 運用面の影響（apply 失敗の巻き添え、PR コンフリクト、Plan のノイズ）はありますが、通信への影響はありません。
+
+RCG の上限は **50 / Policy** のため、Spoke ごとに RCG を作ると大規模環境では枯渇します。
+本構成では **RCG をルール種別（Network / Application）で分離し、RC をサブスクリプション単位で自動生成** します。
+
+##### RCG の全体構成
+
+| RCG 名 | priority | 内容 |
+|:---|:---|:---|
+| `DefaultRuleCollectionGroup` | 200 | 全 Spoke 共通（DNS, KMS, Azure サービス等） |
+| `SpokeNetworkRules` | 1000 | Spoke 固有の Network ルール（RC per サブスクリプション） |
+| `SpokeApplicationRules` | 1100 | Spoke 固有の Application ルール（RC per サブスクリプション） |
+
+```
+DefaultRuleCollectionGroup (priority 200) — プラットフォーム管理・編集禁止
+├── RC: AllowInfrastructure (DNS, KMS, AMA ...)
+├── RC: AllowMicrosoft365
+└── RC: AllowPlatformServices
+
+SpokeNetworkRules (priority 1000) — YAML から自動生成
+├── RC: my-system-network       ← subscriptions/my-system.yaml から
+├── RC: other-system-network    ← subscriptions/other-system.yaml から
+└── RC: ...
+
+SpokeApplicationRules (priority 1100) — YAML から自動生成
+├── RC: my-system-application   ← subscriptions/my-system.yaml から
+├── RC: other-system-application ← subscriptions/other-system.yaml から
+└── RC: ...
+```
+
+##### YAML でのルール定義
+
+サブスクリプション YAML にファイアウォールルールを記述します。**Terraform コードの編集は不要** です。
+
+```yaml
+# subscriptions/my-system.yaml
+display_name: "my-system"
+subscription_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# ... VNet, alert_contacts 等は省略 ...
+
+firewall_rules:
+  network_rules:
+    - name: AllowSQL
+      protocols: [TCP]
+      source_addresses: ["10.201.1.0/24"]
+      destination_addresses: ["10.201.2.0/24"]
+      destination_ports: ["1433"]
+
+    - name: AllowRedis
+      protocols: [TCP]
+      source_addresses: ["10.201.1.0/24"]
+      destination_addresses: ["10.201.3.0/24"]
+      destination_ports: ["6380"]
+
+  application_rules:
+    - name: AllowExternalAPI
+      source_addresses: ["10.201.1.0/24"]
+      protocols:
+        - type: Https
+          port: 443
+      destination_fqdns: ["api.example.com"]
+```
+
+この方式のメリット：
+
+| 観点 | 効果 |
+|:---|:---|
+| **一元管理** | VNet、アラート、ファイアウォールルールがすべて 1 つの YAML に集約。Spoke の全貌を 1 ファイルで把握できる |
+| **Terraform コード不変** | ルールの追加・変更は YAML の編集だけで完結。`.tf` ファイルの編集不要 |
+| **レビューしやすい** | YAML のルール定義は HCL より読みやすく、非エンジニアでもレビュー可能 |
+| **RCG 枯渇なし** | RCG は固定 3 つ。RC 上限 200 / RCG のため、サブスクリプション 200 個まで対応 |
+
+> **運用ルール**: `DefaultRuleCollectionGroup` はプラットフォームチーム以外は編集禁止とし、CODEOWNERS で保護します。Spoke チームは自分の YAML ファイルのみ編集し、PR レビューを経て main にマージします。
+
 ### Azure Bastion
 
 Azure Bastion は、Azure Portal から VM に安全に RDP/SSH 接続するマネージドサービスです。VM にパブリック IP を付与せず、NSG で RDP/SSH ポートを開放する必要もありません。
 Hub VNet の `AzureBastionSubnet` にデプロイされ、Hub およびピアリング済みの Spoke VNet 内の VM に接続できます。
+リモート接続の録画など、セキュリティ要件を満たしたリモート接続環境を提供できます。
 
 [参考：Azure Bastion とは](https://learn.microsoft.com/ja-jp/azure/bastion/bastion-overview)
 

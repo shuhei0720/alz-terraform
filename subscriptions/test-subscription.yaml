@@ -36,3 +36,18 @@ virtual_network:
       address_prefix: "10.200.2.0/24"
     - name: "snet-web"
       address_prefix: "10.200.3.0/24"
+
+firewall_rules:
+  network_rules:
+    - name: "AllowSQL"
+      protocols: ["TCP"]
+      source_addresses: ["10.200.1.0/24"]
+      destination_addresses: ["10.200.2.0/24"]
+      destination_ports: ["1433"]
+  application_rules:
+    - name: "AllowExternalAPI"
+      source_addresses: ["10.200.1.0/24"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns: ["api.example.com"]

@@ -88,6 +88,7 @@ variable "hub_virtual_networks" {
       bandwidth_in_mbps     = optional(number, 50)
       sku_tier              = optional(string, "Standard")
       sku_family            = optional(string, "MeteredData")
+      connection_enabled    = optional(bool, false)
     }), {})
   }))
   default = {}
