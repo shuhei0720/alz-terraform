@@ -76,3 +76,16 @@ private_dns_enabled = true
 # グローバル通知先メールアドレス（基盤サブスクリプション + Service Health 通知）
 # Spoke サブスクリプションの担当者通知は YAML の alert_contacts で定義。
 amba_alert_email = ["platform-team@example.com"]
+
+# =============================================================================
+# Subscription Vending
+# =============================================================================
+
+# サブスクリプション新規作成時に必要（YAML で subscription_id を省略した場合）
+# 既存サブスクリプションのみ利用する場合は省略可能。
+#
+# EA の場合:
+# billing_scope_id = "/providers/Microsoft.Billing/billingAccounts/{billingAccountId}/enrollmentAccounts/{enrollmentAccountId}"
+#
+# MCA の場合:
+# billing_scope_id = "/providers/Microsoft.Billing/billingAccounts/{billingAccountId}/billingProfiles/{billingProfileId}/invoiceSections/{invoiceSectionId}"

@@ -11,6 +11,10 @@
 #
 #   ※ provider や module ブロックの追加は不要です（azapi で自動処理）
 #
+# サブスクリプションの扱い:
+#   - subscription_id 未指定 → 新規作成（billing_scope_id 変数が必要）
+#   - subscription_id 指定   → 既存サブスクリプションを使用
+#
 # 特徴:
 #   - Corp 管理グループ配置 → 企業ポリシーが適用される
 #   - Hub ピアリング有効 → Azure Firewall 経由でオンプレと通信可能
@@ -19,7 +23,7 @@
 # =============================================================================
 
 display_name: "<サブスクリプション表示名>"
-subscription_id: "<サブスクリプション ID (GUID)>"
+# subscription_id: "<サブスクリプション ID (GUID)>"  # 省略時は新規作成されます
 workload_type: "Production"
 management_group_id: "corp"
 location: "japaneast"

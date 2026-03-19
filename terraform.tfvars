@@ -72,3 +72,16 @@ private_dns_enabled = true
 #   "privatelink.database.windows.net",
 #   "privatelink.vaultcore.azure.net",
 # ]
+
+# =============================================================================
+# AMBA (Azure Monitor Baseline Alerts)
+# =============================================================================
+
+amba_alert_email = ["platform-team@example.com"]
+
+# =============================================================================
+# Subscription Vending
+# =============================================================================
+
+# MCA (Microsoft Customer Agreement)
+billing_scope_id = "/providers/Microsoft.Billing/billingAccounts/6d92e1a7-44ef-5b9d-fe85-600e31fecd27:7ffb2b72-d71a-46c2-ac74-10566d437c9e_2019-05-31/billingProfiles/KXVV-QQVV-BG7-PGB/invoiceSections/b5316415-c236-41e7-8237-fcf186346a73"

@@ -129,6 +129,26 @@ variable "subscription_vending_path" {
   default     = "./subscriptions"
 }
 
+variable "billing_scope_id" {
+  description = <<-EOT
+    サブスクリプション新規作成時の課金スコープ ID。
+    YAML に subscription_id が未指定のサブスクリプションがある場合に必須。
+
+    EA:  /providers/Microsoft.Billing/billingAccounts/{billingAccountName}/enrollmentAccounts/{enrollmentAccountName}
+    MCA: /providers/Microsoft.Billing/billingAccounts/{billingAccountName}/billingProfiles/{billingProfileName}/invoiceSections/{invoiceSectionName}
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.billing_scope_id == null ||
+      can(regex("^/providers/Microsoft.Billing/billingAccounts/.+", var.billing_scope_id))
+    )
+    error_message = "billing_scope_id は /providers/Microsoft.Billing/billingAccounts/ で始まる必要があります。"
+  }
+}
+
 # =============================================================================
 # DNS
 # =============================================================================
