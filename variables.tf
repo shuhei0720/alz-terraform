@@ -79,7 +79,7 @@ variable "active_hub_key" {
   default     = null
 
   validation {
-    condition     = var.active_hub_key == null || contains(keys(var.hub_virtual_networks), coalesce(var.active_hub_key, ""))
+    condition     = var.active_hub_key == null ? true : contains(keys(var.hub_virtual_networks), var.active_hub_key)
     error_message = "active_hub_key は null または hub_virtual_networks のキー名と一致する必要があります。"
   }
 }
