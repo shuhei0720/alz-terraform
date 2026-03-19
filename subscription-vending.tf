@@ -34,10 +34,24 @@ locals {
     if !startswith(f, "templates/")
   }
 
+  # サブスクリプション新規作成が必要なもの（subscription_id 未指定）
+  subscriptions_to_create = {
+    for sub_key, sub in local.subscriptions : sub_key => sub
+    if try(sub.subscription_id, null) == null
+  }
+
+  # 解決済みサブスクリプション ID（既存 or 新規作成）
+  resolved_subscription_ids = {
+    for sub_key, sub in local.subscriptions : sub_key =>
+    try(sub.subscription_id, null) != null
+    ? sub.subscription_id
+    : azurerm_subscription.vending[sub_key].subscription_id
+  }
+
   # 各サブスクリプションの派生値
   vending = {
     for sub_key, sub in local.subscriptions : sub_key => {
-      sub_id       = sub.subscription_id
+      sub_id       = local.resolved_subscription_ids[sub_key]
       tags         = merge(var.tags, try(sub.tags, {}))
       has_vnet     = sub.virtual_network != null
       has_firewall = length(local.hub_keys) > 0 && try(var.hub_virtual_networks[local.hub_keys[0]].firewall_subnet_prefix, null) != null
@@ -68,7 +82,7 @@ locals {
       for rg_key, rg in try(sub.resource_groups, {}) :
       "${sub_key}/${rg_key}" => merge(rg, {
         sub_key = sub_key
-        sub_id  = sub.subscription_id
+        sub_id  = local.resolved_subscription_ids[sub_key]
         tags    = local.vending[sub_key].tags
       })
     }
@@ -112,7 +126,7 @@ locals {
   # alert_contacts が定義されている Spoke サブスクリプション（アラートルーティング用）
   vending_with_alerts = {
     for sub_key, sub in local.subscriptions : sub_key => {
-      sub_id         = sub.subscription_id
+      sub_id         = local.resolved_subscription_ids[sub_key]
       display_name   = sub.display_name
       location       = sub.location
       alert_contacts = sub.alert_contacts
@@ -120,6 +134,52 @@ locals {
     }
     if try(length(sub.alert_contacts), 0) > 0
   }
+}
+
+# =============================================================================
+# Subscription Creation — subscription_id 未指定の YAML → 新規作成
+# =============================================================================
+#
+# YAML に subscription_id を記載しない場合、azurerm_subscription でサブスクリプションを
+# 新規作成します。billing_scope_id 変数が必須です。
+#
+# 既存サブスクリプションを使う場合は、YAML に subscription_id を記載するだけで
+# このリソースはスキップされます。
+#
+# 注意:
+#   - subscription_id は apply 後に初めて判明します（plan 時は unknown）
+#   - Azure API の結果整合性のため、作成後 30 秒の待機が入ります
+#   - terraform destroy 時のサブスクリプション誤キャンセル防止のため
+#     prevent_cancellation_on_destroy = true を設定しています（terraform.tf）
+# =============================================================================
+
+resource "azurerm_subscription" "vending" {
+  for_each = local.subscriptions_to_create
+
+  subscription_name = each.value.display_name
+  alias             = "${var.root_id}-${each.key}"
+  billing_scope_id  = var.billing_scope_id
+  workload          = try(each.value.workload_type, "Production")
+  tags              = merge(var.tags, try(each.value.tags, {}))
+}
+
+# サブスクリプション作成後の API 伝搬待機（結果整合性対策）
+resource "time_sleep" "wait_for_subscription" {
+  for_each = local.subscriptions_to_create
+
+  depends_on      = [azurerm_subscription.vending]
+  create_duration = "30s"
+}
+
+# =============================================================================
+# Management Group Association — 新規作成したサブスクリプションを MG に配置
+# =============================================================================
+
+resource "azurerm_management_group_subscription_association" "vending" {
+  for_each = local.subscriptions_to_create
+
+  management_group_id = "/providers/Microsoft.Management/managementGroups/${var.root_id}-${each.value.management_group_id}"
+  subscription_id     = "/subscriptions/${azurerm_subscription.vending[each.key].subscription_id}"
 }
 
 # =============================================================================
@@ -134,6 +194,8 @@ resource "azapi_resource" "vending_resource_groups" {
   parent_id = "/subscriptions/${each.value.sub_id}"
   location  = each.value.location
   tags      = each.value.tags
+
+  depends_on = [time_sleep.wait_for_subscription]
 
   lifecycle { ignore_changes = all }
 }

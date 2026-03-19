@@ -40,12 +40,15 @@ data "azurerm_client_config" "current" {}
 # Providers
 # =============================================================================
 
-# デフォルト — テナントレベルリソース（管理グループ、ポリシー）に使用
+# デフォルト — テナントレベルリソース（管理グループ、ポリシー、サブスクリプション作成）に使用
 provider "azurerm" {
   resource_provider_registrations = "none"
   features {
     resource_group {
       prevent_deletion_if_contains_resources = false
+    }
+    subscription {
+      prevent_cancellation_on_destroy = true
     }
   }
 }

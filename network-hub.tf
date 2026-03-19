@@ -390,7 +390,7 @@ resource "azurerm_firewall_policy_rule_collection_group" "spoke_application" {
   provider           = azurerm.connectivity
   name               = "SpokeApplicationRules"
   firewall_policy_id = azurerm_firewall_policy.hub[each.key].id
-  priority           = 1100
+  priority           = 2000
 
   dynamic "application_rule_collection" {
     for_each = {
