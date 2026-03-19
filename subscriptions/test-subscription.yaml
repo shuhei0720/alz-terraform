@@ -24,6 +24,7 @@ resource_groups:
     location: "japaneast"
 
 virtual_network:
+  hub_key: "primary"
   name: "vnet-test"
   resource_group_name: "rg-test-network"
   address_space: ["10.200.0.0/16"]

@@ -21,9 +21,14 @@
 #   │ Spoke チーム委任        │ RG, VNet(DNS以外), NSG, Subnet, AG, ARP  │
 #   └────────────────────────┴──────────────────────────────────────────┘
 #   - VNet 本体は ignore_changes=all（アドレス空間等は Spoke チーム委任）
-#   - DNS サーバーは azapi_update_resource で PATCH（DR 切替時に追跡）
-#   - ルートテーブルは ignore_changes + PATCH で管理（DR 切替時にルート更新）
-#   - ピアリングは replace_triggered_by で Hub 切替時に強制再作成
+#   - DNS サーバーは azapi_update_resource で PATCH（Hub 切替時に追跡）
+#   - ルートテーブルは ignore_changes + PATCH で管理（Hub 切替時にルート更新）
+#   - ピアリングは名前に hub_key を含め、ForceNew で Hub 切替時に強制再作成
+#
+# Hub 選択の優先順位:
+#   1. active_hub_key（DR 一括オーバーライド）
+#   2. YAML virtual_network.hub_key（Spoke 個別指定）
+#   3. "primary"（デフォルト）
 #
 # =============================================================================
 
@@ -52,15 +57,23 @@ locals {
     : azurerm_subscription.vending[sub_key].subscription_id
   }
 
+  # 各サブスクリプションの有効な Hub キー
+  # active_hub_key(DR オーバーライド) > YAML hub_key > "primary"(デフォルト)
+  effective_hub_keys = {
+    for sub_key, sub in local.subscriptions : sub_key =>
+    var.active_hub_key != null ? var.active_hub_key : try(sub.virtual_network.hub_key, "primary")
+  }
+
   # 各サブスクリプションの派生値
   vending = {
     for sub_key, sub in local.subscriptions : sub_key => {
-      sub_id       = local.resolved_subscription_ids[sub_key]
-      tags         = merge(var.tags, try(sub.tags, {}))
-      has_vnet     = sub.virtual_network != null
-      has_firewall = length(local.hub_keys) > 0 && try(var.hub_virtual_networks[var.active_hub_key].firewall_subnet_prefix, null) != null
-      has_peering  = try(sub.virtual_network.hub_peering_enabled, false) && length(local.hub_keys) > 0
-      vnet_rg      = try(sub.virtual_network.resource_group_name, "")
+      sub_id            = local.resolved_subscription_ids[sub_key]
+      tags              = merge(var.tags, try(sub.tags, {}))
+      has_vnet          = sub.virtual_network != null
+      effective_hub_key = local.effective_hub_keys[sub_key]
+      has_firewall      = length(local.hub_keys) > 0 && try(var.hub_virtual_networks[local.effective_hub_keys[sub_key]].firewall_subnet_prefix, null) != null
+      has_peering       = try(sub.virtual_network.hub_peering_enabled, false) && length(local.hub_keys) > 0
+      vnet_rg           = try(sub.virtual_network.resource_group_name, "")
       subnets = {
         for s in try(sub.virtual_network.subnets, []) :
         s.name => s
@@ -111,7 +124,8 @@ locals {
   vending_spoke_routes = flatten([
     for sub_key, sub in local.subscriptions : [
       for i, cidr in try(sub.virtual_network.address_space, []) : {
-        key            = "${sub_key}-${i}"
+        key            = "${local.effective_hub_keys[sub_key]}-${sub_key}-${i}"
+        hub_key        = local.effective_hub_keys[sub_key]
         name           = "to-${sub.virtual_network.name}-${i}"
         address_prefix = cidr
       }
@@ -224,7 +238,7 @@ resource "azapi_resource" "vending_vnet" {
       }
       dhcpOptions = {
         dnsServers = [
-          azurerm_private_dns_resolver_inbound_endpoint.hub[var.active_hub_key].ip_configurations[0].private_ip_address
+          azurerm_private_dns_resolver_inbound_endpoint.hub[local.effective_hub_keys[each.key]].ip_configurations[0].private_ip_address
         ]
       }
     }
@@ -252,7 +266,7 @@ resource "azapi_update_resource" "vending_vnet_dns" {
     properties = {
       dhcpOptions = {
         dnsServers = [
-          azurerm_private_dns_resolver_inbound_endpoint.hub[var.active_hub_key].ip_configurations[0].private_ip_address
+          azurerm_private_dns_resolver_inbound_endpoint.hub[local.effective_hub_keys[each.key]].ip_configurations[0].private_ip_address
         ]
       }
     }
@@ -307,7 +321,7 @@ resource "azapi_resource" "vending_route_table" {
           properties = {
             addressPrefix    = "0.0.0.0/0"
             nextHopType      = "VirtualAppliance"
-            nextHopIpAddress = azurerm_firewall.hub[var.active_hub_key].ip_configuration[0].private_ip_address
+            nextHopIpAddress = azurerm_firewall.hub[local.effective_hub_keys[each.key]].ip_configuration[0].private_ip_address
           }
         }
       ]
@@ -341,7 +355,7 @@ resource "azapi_update_resource" "vending_route_table_routes" {
           properties = {
             addressPrefix    = "0.0.0.0/0"
             nextHopType      = "VirtualAppliance"
-            nextHopIpAddress = azurerm_firewall.hub[var.active_hub_key].ip_configuration[0].private_ip_address
+            nextHopIpAddress = azurerm_firewall.hub[local.effective_hub_keys[each.key]].ip_configuration[0].private_ip_address
           }
         }
       ]
@@ -395,17 +409,17 @@ resource "azapi_resource" "vending_spoke_to_hub" {
   for_each = local.vending_with_peering
 
   type = "Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-01-01"
-  # ピアリング名に active_hub_key を含める。azapi_resource の name は ForceNew
+  # ピアリング名に effective_hub_key を含める。azapi_resource の name は ForceNew
   # のため、Hub 切替時に自動で destroy → recreate される。
   # Azure は remoteVirtualNetwork のインプレース変更を禁止するため
   # (ChangingRemoteVirtualNetworkNotAllowed)、この仕組みで回避する。
-  name      = "peer-${local.subscriptions[each.key].virtual_network.name}-to-hub-${var.active_hub_key}"
+  name      = "peer-${local.subscriptions[each.key].virtual_network.name}-to-hub-${local.effective_hub_keys[each.key]}"
   parent_id = azapi_resource.vending_vnet[each.key].id
 
   body = {
     properties = {
       remoteVirtualNetwork = {
-        id = azurerm_virtual_network.hub[var.active_hub_key].id
+        id = azurerm_virtual_network.hub[local.effective_hub_keys[each.key]].id
       }
       allowForwardedTraffic     = true
       allowVirtualNetworkAccess = true
@@ -432,7 +446,7 @@ resource "azapi_resource" "vending_hub_to_spoke" {
 
   type      = "Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-01-01"
   name      = "peer-hub-to-${local.subscriptions[each.key].virtual_network.name}"
-  parent_id = azurerm_virtual_network.hub[var.active_hub_key].id
+  parent_id = azurerm_virtual_network.hub[local.effective_hub_keys[each.key]].id
 
   body = {
     properties = {
@@ -462,11 +476,11 @@ resource "azurerm_route" "gateway_to_vending" {
   } : {}
   provider               = azurerm.connectivity
   name                   = each.value.name
-  resource_group_name    = azurerm_resource_group.hub[var.active_hub_key].name
-  route_table_name       = azurerm_route_table.gateway[var.active_hub_key].name
+  resource_group_name    = azurerm_resource_group.hub[each.value.hub_key].name
+  route_table_name       = azurerm_route_table.gateway[each.value.hub_key].name
   address_prefix         = each.value.address_prefix
   next_hop_type          = "VirtualAppliance"
-  next_hop_in_ip_address = azurerm_firewall.hub[var.active_hub_key].ip_configuration[0].private_ip_address
+  next_hop_in_ip_address = azurerm_firewall.hub[each.value.hub_key].ip_configuration[0].private_ip_address
 }
 
 # =============================================================================
