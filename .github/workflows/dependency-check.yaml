@@ -149,78 +149,77 @@ jobs:
             echo "VER_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Build Report Body
+        id: report
+        if: github.event_name == 'pull_request'
+        env:
+          STATUS: ${{ steps.analyze.outputs.status }}
+          RISK: ${{ steps.analyze.outputs.risk }}
+          LOCK_OK: ${{ steps.analyze.outputs.lock_consistent }}
+          PROVIDER_TABLE: ${{ steps.analyze.outputs.report }}
+          LOCK_DIFF: ${{ steps.analyze.outputs.lock_diff }}
+          VERSIONS: ${{ steps.analyze.outputs.versions }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+
+          TEMPLATE=".github/ISSUE_TEMPLATE/dependency-check-body.md"
+          WORK=$(mktemp)
+          cp "$TEMPLATE" "$WORK"
+
+          # セクション削除ヘルパー
+          remove_section() { sed -i "/<!-- BEGIN:$1 -->/,/<!-- END:$1 -->/d" "$WORK"; }
+
+          # ── プロバイダーステータスで不要セクションを除去 ──
+          case "$STATUS" in
+            changed)   remove_section "provider-new"; remove_section "provider-unchanged" ;;
+            new)       remove_section "provider-changed"; remove_section "provider-unchanged" ;;
+            *)         remove_section "provider-changed"; remove_section "provider-new" ;;
+          esac
+
+          # ── リスクレベルで不要な警告を除去 ──
+          case "${RISK:-none}" in
+            high)   export RISK_BADGE='🔴 High'; remove_section "risk-medium" ;;
+            medium) export RISK_BADGE='🟡 Medium'; remove_section "risk-high" ;;
+            *)      export RISK_BADGE='🟢 Low'; remove_section "risk-high"; remove_section "risk-medium" ;;
+          esac
+
+          # ── Lock file 整合性 ──
+          if [[ "$LOCK_OK" == "true" ]]; then
+            remove_section "lock-inconsistent"
+          else
+            remove_section "lock-ok"
+            [[ -z "${LOCK_DIFF:-}" ]] && remove_section "lock-diff"
+          fi
+
+          # ── チェックリスト ──
+          if [[ "$STATUS" != "changed" ]]; then
+            remove_section "checklist"
+          elif [[ "$RISK" != "high" ]]; then
+            remove_section "checklist-high"
+          fi
+
+          # マーカーコメント除去
+          sed -i '/<!-- BEGIN:/d; /<!-- END:/d' "$WORK"
+
+          # データ変数を展開（指定変数のみ）
+          export PROVIDER_TABLE LOCK_DIFF VERSIONS ACTOR
+          BODY=$(envsubst '${RISK_BADGE} ${PROVIDER_TABLE} ${LOCK_DIFF} ${VERSIONS} ${ACTOR}' < "$WORK")
+
+          {
+            echo "body<<REPORT_BODY_EOF"
+            echo "$BODY"
+            echo "REPORT_BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Post Report to PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
+        env:
+          REPORT_BODY: ${{ steps.report.outputs.body }}
         with:
           script: |
-            const status = '${{ steps.analyze.outputs.status }}';
-            const risk = '${{ steps.analyze.outputs.risk }}';
-            const lockOk = '${{ steps.analyze.outputs.lock_consistent }}' === 'true';
-            const versions = `${{ steps.analyze.outputs.versions }}`;
-
-            let sections = [];
-            sections.push('## 🔎 Dependency Check Report\n');
-
-            // ── プロバイダー変更一覧 ──
-            if (status === 'changed') {
-              const riskBadge = { high: '🔴 High', medium: '🟡 Medium', low: '🟢 Low' }[risk] || risk;
-              sections.push(`### プロバイダー変更 (リスク: ${riskBadge})\n`);
-              sections.push('| Provider | 変更前 | 変更後 | 種別 |');
-              sections.push('|----------|--------|--------|------|');
-              sections.push(`${{ steps.analyze.outputs.report }}`);
-
-              if (risk === 'high') {
-                sections.push('\n> **⚠️ メジャーバージョン変更 / プロバイダー削除が含まれています。**');
-                sections.push('> Breaking Changes がないか、必ずリリースノートを確認してください。\n');
-              }
-              if (risk === 'medium') {
-                sections.push('\n> **📝 マイナーバージョン変更**: 新機能追加やバグ修正が含まれる可能性があります。');
-                sections.push('> plan 結果に意図しない差分がないか確認してください。\n');
-              }
-            } else if (status === 'new') {
-              sections.push('### 🆕 Lock file が新規追加されました\n');
-            } else {
-              sections.push('### ✅ プロバイダーバージョンの変更なし\n');
-            }
-
-            // ── Lock file 整合性 ──
-            if (lockOk) {
-              sections.push('### ✅ Lock File 整合性: OK\n');
-            } else {
-              sections.push('### ⚠️ Lock File の不整合あり\n');
-              sections.push('Lock file のハッシュが再生成と一致しません。');
-              sections.push('`terraform providers lock -platform=linux_amd64` を実行して再コミットしてください。\n');
-              const diff = `${{ steps.analyze.outputs.lock_diff }}`;
-              if (diff) {
-                sections.push('<details><summary>差分を表示</summary>\n');
-                sections.push('```diff');
-                sections.push(diff.substring(0, 10000));
-                sections.push('```\n</details>\n');
-              }
-            }
-
-            // ── レビューチェックリスト ──
-            if (status === 'changed') {
-              sections.push('### 📋 レビューチェックリスト\n');
-              sections.push('- [ ] リリースノート / CHANGELOG の確認');
-              sections.push('- [ ] `terraform plan` の差分に想定外の変更がないか');
-              sections.push('- [ ] `terraform.tf` のバージョン制約と lock file の整合性');
-              if (risk === 'high') {
-                sections.push('- [ ] Breaking Changes の影響範囲を確認');
-                sections.push('- [ ] ロールバック手順を準備');
-              }
-              sections.push('');
-            }
-
-            // ── バージョン情報 ──
-            sections.push('<details><summary>📦 Provider Versions (詳細)</summary>\n');
-            sections.push('```json');
-            sections.push(versions);
-            sections.push('```\n</details>\n');
-
-            sections.push(`*Triggered by @${{ github.actor }}*`);
-            const body = sections.join('\n');
+            const body = process.env.REPORT_BODY;
 
             // 既存の Dependency Check コメントを更新（重複回避）
             const { owner, repo } = context.repo;
