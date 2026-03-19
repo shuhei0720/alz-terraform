@@ -348,6 +348,7 @@ resource "azapi_resource" "alz_policy_assignments" {
       body.properties.metadata.createdOn,
       body.properties.metadata.updatedBy,
       body.properties.metadata.updatedOn,
+      identity,
     ]
   }
 
