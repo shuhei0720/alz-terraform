@@ -22,8 +22,8 @@
 #   └────────────────────────┴──────────────────────────────────────────┘
 #   - VNet 本体は ignore_changes=all（アドレス空間等は Spoke チーム委任）
 #   - DNS サーバーは azapi_update_resource で PATCH（DR 切替時に追跡）
-#   - ルートテーブルは Terraform が継続管理（不正ルート追加を防止）
-#   - ピアリングと Hub 側ルートはプラットフォーム管理（常に追跡）
+#   - ルートテーブルは ignore_changes + PATCH で管理（DR 切替時にルート更新）
+#   - ピアリングは replace_triggered_by で Hub 切替時に強制再作成
 #
 # =============================================================================
 
@@ -315,6 +315,40 @@ resource "azapi_resource" "vending_route_table" {
   }
 
   depends_on = [azapi_resource.vending_resource_groups]
+
+  # ルート変更は azapi_update_resource（PATCH）で管理。
+  # azapi_resource の Update は "Missing Resource Identity" バグがあるため
+  # body のインプレース更新を回避する。
+  lifecycle { ignore_changes = [body] }
+}
+
+# --- Spoke Route Table ルート管理（プラットフォーム管理 — DR 切替追跡） ---
+# Route Table 本体は ignore_changes=[body] で初回作成後は更新しない。
+# デフォルトルート（0.0.0.0/0 → Firewall）は PATCH で継続管理し、
+# active_hub_key の切替時にルートが自動更新される。
+# PATCH は routes 配列を上書きするため、手動追加された不正ルートも排除される。
+resource "azapi_update_resource" "vending_route_table_routes" {
+  for_each = local.vending_with_route_table
+
+  type        = "Microsoft.Network/routeTables@2024-01-01"
+  resource_id = azapi_resource.vending_route_table[each.key].id
+
+  body = {
+    properties = {
+      routes = [
+        {
+          name = "default-to-firewall"
+          properties = {
+            addressPrefix    = "0.0.0.0/0"
+            nextHopType      = "VirtualAppliance"
+            nextHopIpAddress = azurerm_firewall.hub[var.active_hub_key].ip_configuration[0].private_ip_address
+          }
+        }
+      ]
+    }
+  }
+
+  depends_on = [azapi_resource.vending_route_table]
 }
 
 # =============================================================================
@@ -383,6 +417,13 @@ resource "azapi_resource" "vending_spoke_to_hub" {
 
   # use_hub_gateway=true の場合、ER Gateway 完成後でないとピアリング不可
   depends_on = [azurerm_virtual_network_gateway.er]
+
+  # Azure は remoteVirtualNetwork のインプレース変更を禁止する
+  # (ChangingRemoteVirtualNetworkNotAllowed)。active_hub_key 切替時に
+  # 自動で delete → recreate させる。
+  lifecycle {
+    replace_triggered_by = [terraform_data.active_hub_trigger]
+  }
 }
 
 # =============================================================================
