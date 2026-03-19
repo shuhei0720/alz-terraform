@@ -100,6 +100,15 @@ locals {
     ] if try(sub.virtual_network.hub_peering_enabled, false)
   ])
 
+  # firewall_rules が定義されているサブスクリプション
+  vending_with_firewall_rules = {
+    for sub_key, sub in local.subscriptions : sub_key => {
+      network_rules     = try(sub.firewall_rules.network_rules, [])
+      application_rules = try(sub.firewall_rules.application_rules, [])
+    }
+    if try(sub.firewall_rules, null) != null
+  }
+
   # alert_contacts が定義されている Spoke サブスクリプション（アラートルーティング用）
   vending_with_alerts = {
     for sub_key, sub in local.subscriptions : sub_key => {

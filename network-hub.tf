@@ -338,6 +338,94 @@ resource "azurerm_firewall_policy_rule_collection_group" "hub_default" {
 }
 
 # =============================================================================
+# Spoke Network Rules — サブスクリプション YAML から自動生成
+# =============================================================================
+
+resource "azurerm_firewall_policy_rule_collection_group" "spoke_network" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v
+    if v.firewall_subnet_prefix != null && length(local.vending_with_firewall_rules) > 0
+  }
+  provider           = azurerm.connectivity
+  name               = "SpokeNetworkRules"
+  firewall_policy_id = azurerm_firewall_policy.hub[each.key].id
+  priority           = 1000
+
+  dynamic "network_rule_collection" {
+    for_each = {
+      for sub_key, fw in local.vending_with_firewall_rules : sub_key => fw
+      if length(fw.network_rules) > 0
+    }
+    content {
+      name = "${network_rule_collection.key}-network"
+      priority = 100 + index(keys({
+        for sk, fw in local.vending_with_firewall_rules : sk => fw if length(fw.network_rules) > 0
+      }), network_rule_collection.key)
+      action = "Allow"
+
+      dynamic "rule" {
+        for_each = network_rule_collection.value.network_rules
+        content {
+          name                  = rule.value.name
+          protocols             = rule.value.protocols
+          source_addresses      = rule.value.source_addresses
+          destination_addresses = try(rule.value.destination_addresses, null)
+          destination_fqdns     = try(rule.value.destination_fqdns, null)
+          destination_ports     = rule.value.destination_ports
+        }
+      }
+    }
+  }
+}
+
+# =============================================================================
+# Spoke Application Rules — サブスクリプション YAML から自動生成
+# =============================================================================
+
+resource "azurerm_firewall_policy_rule_collection_group" "spoke_application" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v
+    if v.firewall_subnet_prefix != null && length(local.vending_with_firewall_rules) > 0
+  }
+  provider           = azurerm.connectivity
+  name               = "SpokeApplicationRules"
+  firewall_policy_id = azurerm_firewall_policy.hub[each.key].id
+  priority           = 1100
+
+  dynamic "application_rule_collection" {
+    for_each = {
+      for sub_key, fw in local.vending_with_firewall_rules : sub_key => fw
+      if length(fw.application_rules) > 0
+    }
+    content {
+      name = "${application_rule_collection.key}-application"
+      priority = 100 + index(keys({
+        for sk, fw in local.vending_with_firewall_rules : sk => fw if length(fw.application_rules) > 0
+      }), application_rule_collection.key)
+      action = "Allow"
+
+      dynamic "rule" {
+        for_each = application_rule_collection.value.application_rules
+        content {
+          name              = rule.value.name
+          source_addresses  = rule.value.source_addresses
+          destination_fqdns = try(rule.value.destination_fqdns, null)
+          destination_urls  = try(rule.value.destination_urls, null)
+
+          dynamic "protocols" {
+            for_each = rule.value.protocols
+            content {
+              type = protocols.value.type
+              port = protocols.value.port
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# =============================================================================
 # Azure Firewall
 # =============================================================================
 
@@ -487,7 +575,7 @@ resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
 }
 
 # =============================================================================
-# ExpressRoute Circuit（箱のみ — オンプレ接続なし）
+# ExpressRoute Circuit
 # =============================================================================
 
 resource "azurerm_express_route_circuit" "hub" {
@@ -556,6 +644,27 @@ resource "azurerm_virtual_network_gateway" "er" {
     azurerm_subnet.dns_resolver_inbound,
     azurerm_subnet.dns_resolver_outbound,
   ]
+}
+
+# =============================================================================
+# ExpressRoute Connection（キャリア開通後に connection_enabled = true で有効化）
+# =============================================================================
+
+resource "azurerm_virtual_network_gateway_connection" "er" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v
+    if v.gateway_subnet_prefix != null && try(v.express_route.connection_enabled, false)
+  }
+  provider            = azurerm.connectivity
+  name                = "cn-er-hub-${each.value.location}"
+  location            = each.value.location
+  resource_group_name = azurerm_resource_group.hub[each.key].name
+  type                = "ExpressRoute"
+
+  virtual_network_gateway_id = azurerm_virtual_network_gateway.er[each.key].id
+  express_route_circuit_id   = azurerm_express_route_circuit.hub[each.key].id
+
+  tags = var.tags
 }
 
 # =============================================================================

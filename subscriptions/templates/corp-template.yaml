@@ -61,3 +61,20 @@ virtual_network:
       address_prefix: "<例: 10.201.2.0/24>"
     - name: "snet-web"
       address_prefix: "<例: 10.201.3.0/24>"
+
+# Azure Firewall ルール（サブスクリプション固有の穴あけ）
+# 不要であれば firewall_rules セクションを丸ごと削除してください
+firewall_rules:
+  network_rules:
+    - name: "AllowSQL"
+      protocols: ["TCP"]
+      source_addresses: ["<アプリサブネット CIDR>"]
+      destination_addresses: ["<データサブネット CIDR>"]
+      destination_ports: ["1433"]
+  application_rules:
+    - name: "AllowExternalAPI"
+      source_addresses: ["<アプリサブネット CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns: ["<許可する FQDN>"]
