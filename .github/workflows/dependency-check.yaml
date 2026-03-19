@@ -214,7 +214,7 @@ jobs:
 
       - name: Post Report to PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           REPORT_BODY: ${{ steps.report.outputs.body }}
         with:

@@ -70,7 +70,7 @@ jobs:
 
       - name: Create or Update Issue
         if: steps.check.outputs.has_updates == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           ISSUE_BODY: ${{ steps.check.outputs.body }}
         with:
@@ -91,7 +91,7 @@ jobs:
 
       - name: Close Existing Issue (Up to date)
         if: steps.check.outputs.has_updates == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { owner, repo } = context.repo;
