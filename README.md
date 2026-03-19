@@ -164,6 +164,113 @@ alz-terraform/
 | Security | Platform > Security | セキュリティ運用（将来拡張） |
 | ワークロード系 | Landing Zones > Corp or Online | アプリケーション環境 |
 
+### 管理グループの追加
+
+新しい管理グループ（例: `Confidential`）を Landing Zones 配下に追加する場合、**3 箇所を同時に変更**します。
+
+#### Step 1: management-groups.tf にリソース追加
+
+```hcl
+resource "azurerm_management_group" "confidential" {
+  name                       = "${var.root_id}-confidential"
+  display_name               = "Confidential"
+  parent_management_group_id = azurerm_management_group.landing_zones.id
+}
+```
+
+`time_sleep.wait_for_mg_rbac` の `depends_on` リストにも新しい MG を追加してください。
+追加しないと、RBAC 伝搬完了前にポリシー割り当てが走り失敗する可能性があります。
+
+#### Step 2: lib/architecture_definitions/alz_with_amba.alz_architecture_definition.json にエントリ追加
+
+```json
+{
+  "archetypes": ["confidential_custom"],
+  "display_name": "Confidential",
+  "exists": true,
+  "id": "alz-confidential",
+  "parent_id": "alz-landingzones"
+}
+```
+
+- `id` は `${root_id}-<MG名>` と一致させる（root_id が `alz` なら `alz-confidential`）
+- `exists: true` — Terraform でリソースを作るので `true`
+
+#### Step 3: lib/archetype_definitions/ に archetype override YAML 作成
+
+```yaml
+# lib/archetype_definitions/confidential_custom.alz_archetype_override.yaml
+base_archetype: corp          # ベースにする既存 archetype（corp, online 等）
+name: confidential_custom
+
+policy_assignments_to_add: []
+policy_assignments_to_remove: []
+policy_definitions_to_add: []
+policy_definitions_to_remove: []
+```
+
+`base_archetype` に既存の archetype を指定すると、そのポリシーセットを継承した上で追加・除外ができます。
+
+> **注意**: management-groups.tf と architecture_definition.json の整合性を必ず保ってください。片方だけ変更するとポリシー割り当てが壊れます。
+
+### 管理グループ階層の変更
+
+MG の親を変更する場合は、以下の 2 箇所の `parent` を同時に変更します。
+
+| ファイル | 変更箇所 |
+|:---|:---|
+| `management-groups.tf` | `parent_management_group_id` |
+| `alz_with_amba.alz_architecture_definition.json` | `parent_id` |
+
+Terraform が MG の移動を検知し、`apply` で自動的に反映します。
+
+### 基盤サブスクリプションの追加
+
+基盤（Platform）サブスクリプションを追加する場合（例: `Network` サブスクリプション）、以下を変更します。
+
+#### Step 1: variables.tf の subscription_ids に追加
+
+```hcl
+variable "subscription_ids" {
+  # ...
+  validation {
+    condition = alltrue([
+      for key in ["management", "connectivity", "identity", "security", "network"] :  # ← 追加
+      contains(keys(var.subscription_ids), key)
+    ])
+  }
+}
+```
+
+#### Step 2: terraform.tfvars にサブスクリプション ID を追加
+
+```hcl
+subscription_ids = {
+  management   = "..."
+  connectivity = "..."
+  identity     = "..."
+  security     = "..."
+  network      = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # ← 追加
+}
+```
+
+#### Step 3: management-groups.tf に MG 関連付けを追加
+
+```hcl
+# 管理グループを新規作成する場合（上記「管理グループの追加」の手順も実施）
+resource "azurerm_management_group_subscription_association" "network" {
+  management_group_id = azurerm_management_group.network.id               # or 既存 MG
+  subscription_id     = "/subscriptions/${var.subscription_ids["network"]}"
+}
+```
+
+#### Step 4: 必要に応じてリソースを追加
+
+新しい基盤サブスクリプション用のリソース（RG, VNet, 監視設定等）を対応する `.tf` ファイルに追加します。
+Connectivity サブスクリプションのように `azurerm` の provider alias が必要な場合は、`terraform.tf` にも追加してください。
+
+> **ワークロード系サブスクリプション**の追加は、上記の手順は不要です。`subscriptions/` に YAML を 1 つ配置するだけで自動的に払い出されます。詳細は[サブスクリプション自動払い出し（Vending）](#サブスクリプション自動払い出しvending)を参照してください。
+
 ---
 
 ## ネットワーク設計（Hub-Spoke）
@@ -392,7 +499,7 @@ firewall_rules:
 | **レビューしやすい** | YAML のルール定義は HCL より読みやすく、非エンジニアでもレビュー可能 |
 | **RCG 枯渇なし** | RCG は固定 3 つ。RC 上限 200 / RCG のため、サブスクリプション 200 個まで対応 |
 
-> **運用ルール**: `DefaultRuleCollectionGroup` はプラットフォームチーム以外は編集禁止とし、CODEOWNERS で保護します。Spoke チームは自分の YAML ファイルのみ編集し、PR レビューを経て main にマージします。
+> **運用ルール**: 運用チームは各サブスクリプションの YAML ファイルのみ編集し、PR レビューを経て main にマージします。
 
 ### Azure Bastion
 
