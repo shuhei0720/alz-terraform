@@ -15,11 +15,15 @@
 #   - ルートテーブル（Firewall 経由、BGP 伝搬無効）
 #   - Hub VNet へのピアリング（双方向）
 #
-# Spoke リソースの委任:
-#   Spoke サブスクリプション内のリソース（RG, VNet, NSG, RT, Subnet, AG, ARP）は
-#   初回 apply でベースラインを作成した後、lifecycle { ignore_changes = all } により
-#   以降の apply ではドリフトを検知・修正しません。Spoke チームが自由に変更できます。
-#   ピアリングと Hub 側ルートはプラットフォーム管理のため引き続き追跡対象です。
+# Spoke リソースの委任とプラットフォーム管理の分離:
+#   ┌────────────────────────┬──────────────────────────────────────────┐
+#   │ プラットフォーム管理    │ VNet DNS, Route Table, Peering, GW Route │
+#   │ Spoke チーム委任        │ RG, VNet(DNS以外), NSG, Subnet, AG, ARP  │
+#   └────────────────────────┴──────────────────────────────────────────┘
+#   - VNet 本体は ignore_changes=all（アドレス空間等は Spoke チーム委任）
+#   - DNS サーバーは azapi_update_resource で PATCH（DR 切替時に追跡）
+#   - ルートテーブルは Terraform が継続管理（不正ルート追加を防止）
+#   - ピアリングと Hub 側ルートはプラットフォーム管理（常に追跡）
 #
 # =============================================================================
 
@@ -54,7 +58,7 @@ locals {
       sub_id       = local.resolved_subscription_ids[sub_key]
       tags         = merge(var.tags, try(sub.tags, {}))
       has_vnet     = sub.virtual_network != null
-      has_firewall = length(local.hub_keys) > 0 && try(var.hub_virtual_networks[local.hub_keys[0]].firewall_subnet_prefix, null) != null
+      has_firewall = length(local.hub_keys) > 0 && try(var.hub_virtual_networks[var.active_hub_key].firewall_subnet_prefix, null) != null
       has_peering  = try(sub.virtual_network.hub_peering_enabled, false) && length(local.hub_keys) > 0
       vnet_rg      = try(sub.virtual_network.resource_group_name, "")
       subnets = {
@@ -220,7 +224,7 @@ resource "azapi_resource" "vending_vnet" {
       }
       dhcpOptions = {
         dnsServers = [
-          azurerm_private_dns_resolver_inbound_endpoint.hub[local.hub_keys[0]].ip_configurations[0].private_ip_address
+          azurerm_private_dns_resolver_inbound_endpoint.hub[var.active_hub_key].ip_configurations[0].private_ip_address
         ]
       }
     }
@@ -232,6 +236,29 @@ resource "azapi_resource" "vending_vnet" {
   ]
 
   lifecycle { ignore_changes = all }
+}
+
+# --- Spoke VNet DNS サーバー管理（プラットフォーム管理 — DR 切替追跡） ---
+# VNet 本体は ignore_changes=all で委任しつつ、DNS サーバー設定だけを
+# azapi_update_resource（PATCH）で継続管理する。active_hub_key の切替時に
+# Spoke VNet の DNS サーバーがセカンダリ Hub の Resolver に自動更新される。
+resource "azapi_update_resource" "vending_vnet_dns" {
+  for_each = local.vending_with_vnet
+
+  type        = "Microsoft.Network/virtualNetworks@2024-01-01"
+  resource_id = azapi_resource.vending_vnet[each.key].id
+
+  body = {
+    properties = {
+      dhcpOptions = {
+        dnsServers = [
+          azurerm_private_dns_resolver_inbound_endpoint.hub[var.active_hub_key].ip_configurations[0].private_ip_address
+        ]
+      }
+    }
+  }
+
+  depends_on = [azapi_resource.vending_vnet]
 }
 
 # =============================================================================
@@ -280,7 +307,7 @@ resource "azapi_resource" "vending_route_table" {
           properties = {
             addressPrefix    = "0.0.0.0/0"
             nextHopType      = "VirtualAppliance"
-            nextHopIpAddress = azurerm_firewall.hub[local.hub_keys[0]].ip_configuration[0].private_ip_address
+            nextHopIpAddress = azurerm_firewall.hub[var.active_hub_key].ip_configuration[0].private_ip_address
           }
         }
       ]
@@ -288,8 +315,6 @@ resource "azapi_resource" "vending_route_table" {
   }
 
   depends_on = [azapi_resource.vending_resource_groups]
-
-  lifecycle { ignore_changes = all }
 }
 
 # =============================================================================
@@ -342,7 +367,7 @@ resource "azapi_resource" "vending_spoke_to_hub" {
   body = {
     properties = {
       remoteVirtualNetwork = {
-        id = azurerm_virtual_network.hub[local.hub_keys[0]].id
+        id = azurerm_virtual_network.hub[var.active_hub_key].id
       }
       allowForwardedTraffic     = true
       allowVirtualNetworkAccess = true
@@ -369,7 +394,7 @@ resource "azapi_resource" "vending_hub_to_spoke" {
 
   type      = "Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-01-01"
   name      = "peer-hub-to-${local.subscriptions[each.key].virtual_network.name}"
-  parent_id = azurerm_virtual_network.hub[local.hub_keys[0]].id
+  parent_id = azurerm_virtual_network.hub[var.active_hub_key].id
 
   body = {
     properties = {
@@ -399,11 +424,11 @@ resource "azurerm_route" "gateway_to_vending" {
   } : {}
   provider               = azurerm.connectivity
   name                   = each.value.name
-  resource_group_name    = azurerm_resource_group.hub[local.hub_keys[0]].name
-  route_table_name       = azurerm_route_table.gateway[local.hub_keys[0]].name
+  resource_group_name    = azurerm_resource_group.hub[var.active_hub_key].name
+  route_table_name       = azurerm_route_table.gateway[var.active_hub_key].name
   address_prefix         = each.value.address_prefix
   next_hop_type          = "VirtualAppliance"
-  next_hop_in_ip_address = azurerm_firewall.hub[local.hub_keys[0]].ip_configuration[0].private_ip_address
+  next_hop_in_ip_address = azurerm_firewall.hub[var.active_hub_key].ip_configuration[0].private_ip_address
 }
 
 # =============================================================================

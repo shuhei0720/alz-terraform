@@ -69,6 +69,17 @@ variable "sentinel_enabled" {
 # Network
 # =============================================================================
 
+variable "active_hub_key" {
+  description = "Spoke が接続する Hub VNet のキー名。DR 時にセカンダリへ一括切り替え可能"
+  type        = string
+  default     = "primary"
+
+  validation {
+    condition     = contains(keys(var.hub_virtual_networks), var.active_hub_key)
+    error_message = "active_hub_key は hub_virtual_networks のキー名と一致する必要があります。"
+  }
+}
+
 variable "hub_virtual_networks" {
   description = "Hub VNet の設定マップ（キー名は任意、例: primary, secondary）"
   type = map(object({

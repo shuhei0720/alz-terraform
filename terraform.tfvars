@@ -44,20 +44,22 @@ hub_virtual_networks = {
     firewall_sku_tier                   = "Standard"
     firewall_threat_intel_mode          = "Deny"
   }
-  # セカンダリリージョンが必要な場合はコメントを解除
-  # secondary = {
-  #   location                          = "japanwest"
-  #   address_space                     = ["10.1.0.0/16"]
-  #   gateway_subnet_prefix             = "10.1.0.0/27"
-  #   bastion_subnet_prefix             = "10.1.1.0/26"
-  #   firewall_subnet_prefix            = "10.1.2.0/26"
-  #   firewall_management_subnet_prefix = null
-  #   dns_resolver_inbound_subnet_prefix = "10.1.3.0/26"
-  #   dns_resolver_outbound_subnet_prefix = "10.1.4.0/26"
-  #   firewall_sku_tier                 = "Standard"
-  #   firewall_threat_intel_mode        = "Deny"
-  # }
+  secondary = {
+    location                            = "japanwest"
+    address_space                       = ["10.1.0.0/16"]
+    gateway_subnet_prefix               = "10.1.0.0/27"
+    bastion_subnet_prefix               = "10.1.1.0/26"
+    firewall_subnet_prefix              = "10.1.2.0/26"
+    firewall_management_subnet_prefix   = null
+    dns_resolver_inbound_subnet_prefix  = "10.1.3.0/26"
+    dns_resolver_outbound_subnet_prefix = "10.1.4.0/26"
+    firewall_sku_tier                   = "Standard"
+    firewall_threat_intel_mode          = "Deny"
+  }
 }
+
+# Spoke が接続する Hub。DR 時に "secondary" に切り替えて apply
+active_hub_key = "primary"
 
 # =============================================================================
 # DNS
