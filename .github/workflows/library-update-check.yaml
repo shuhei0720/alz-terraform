@@ -28,6 +28,12 @@ jobs:
           # policy.tf から現在のバージョンを抽出
           CURRENT_ALZ=$(grep -A2 'path = "platform/alz"' policy.tf | grep 'ref' | sed 's/.*"\(.*\)".*/\1/')
           CURRENT_AMBA=$(grep -A2 'path = "platform/amba"' policy.tf | grep 'ref' | sed 's/.*"\(.*\)".*/\1/')
+
+          if [[ -z "$CURRENT_ALZ" || -z "$CURRENT_AMBA" ]]; then
+            echo "::error::Failed to extract library versions from policy.tf"
+            exit 1
+          fi
+
           echo "Current ALZ:  $CURRENT_ALZ"
           echo "Current AMBA: $CURRENT_AMBA"
 
@@ -48,7 +54,7 @@ jobs:
 
             # テンプレートに変数を展開して Issue body を生成
             export UPDATES CURRENT_ALZ CURRENT_AMBA LATEST_ALZ LATEST_AMBA
-            BODY=$(envsubst < .github/ISSUE_TEMPLATE/library-update-body.md)
+            BODY=$(envsubst '${UPDATES} ${CURRENT_ALZ} ${CURRENT_AMBA} ${LATEST_ALZ} ${LATEST_AMBA}' < .github/ISSUE_TEMPLATE/library-update-body.md)
             BODY+=$'\n\n'"*検知日時: $(date -u +%Y-%m-%dT%H:%M:%SZ)*"
 
             # multiline output
@@ -65,11 +71,13 @@ jobs:
       - name: Create or Update Issue
         if: steps.check.outputs.has_updates == 'true'
         uses: actions/github-script@v7
+        env:
+          ISSUE_BODY: ${{ steps.check.outputs.body }}
         with:
           script: |
             const title = '📦 ポリシーライブラリの更新があります';
             const label = 'library-update';
-            const body = `${{ steps.check.outputs.body }}`;
+            const body = process.env.ISSUE_BODY;
 
             const { owner, repo } = context.repo;
             const issues = await github.rest.issues.listForRepo({ owner, repo, labels: label, state: 'open' });
