@@ -1,9 +1,3 @@
-# active_hub_key の変更を検知するトリガー（replace_triggered_by 用）
-# replace_triggered_by は変数参照を直接使えないため、terraform_data を中間リソースとして使用。
-resource "terraform_data" "active_hub_trigger" {
-  input = var.active_hub_key
-}
-
 locals {
   # Hub VNet のキー一覧
   hub_keys = keys(var.hub_virtual_networks)

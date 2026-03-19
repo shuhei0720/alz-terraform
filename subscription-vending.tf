@@ -394,8 +394,12 @@ resource "azapi_resource" "vending_subnets" {
 resource "azapi_resource" "vending_spoke_to_hub" {
   for_each = local.vending_with_peering
 
-  type      = "Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-01-01"
-  name      = "peer-${local.subscriptions[each.key].virtual_network.name}-to-hub"
+  type = "Microsoft.Network/virtualNetworks/virtualNetworkPeerings@2024-01-01"
+  # ピアリング名に active_hub_key を含める。azapi_resource の name は ForceNew
+  # のため、Hub 切替時に自動で destroy → recreate される。
+  # Azure は remoteVirtualNetwork のインプレース変更を禁止するため
+  # (ChangingRemoteVirtualNetworkNotAllowed)、この仕組みで回避する。
+  name      = "peer-${local.subscriptions[each.key].virtual_network.name}-to-hub-${var.active_hub_key}"
   parent_id = azapi_resource.vending_vnet[each.key].id
 
   body = {
@@ -417,13 +421,6 @@ resource "azapi_resource" "vending_spoke_to_hub" {
 
   # use_hub_gateway=true の場合、ER Gateway 完成後でないとピアリング不可
   depends_on = [azurerm_virtual_network_gateway.er]
-
-  # Azure は remoteVirtualNetwork のインプレース変更を禁止する
-  # (ChangingRemoteVirtualNetworkNotAllowed)。active_hub_key 切替時に
-  # 自動で delete → recreate させる。
-  lifecycle {
-    replace_triggered_by = [terraform_data.active_hub_trigger]
-  }
 }
 
 # =============================================================================
