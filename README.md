@@ -903,7 +903,7 @@ Management サブスクリプションに監視の中核リソースを集約し
 | **DCR: Change Tracking** | Windows レジストリ/ファイル/サービスの変更検出結果を LAW に収集 |
 | **DCR: Defender for SQL** | SQL 脆弱性アラート/ログイン/テレメトリを LAW に収集 |
 | **Change Tracking Solution** | Change Tracking 機能の有効化（Legacy Solution） |
-| **Storage Account（LAW アーカイブ）** | LAW ログの長期アーカイブ先（GRS、Archive tier、WORM 対応） |
+| **Storage Account（LAW アーカイブ）** | LAW ログの長期アーカイブ先（GRS、Cold tier → Archive tier、不変性有効） |
 | **Data Export Rule** | LAW の指定テーブルを Blob Storage に自動エクスポート |
 
 ### Log Analytics Workspace（LAW）— ログを一か所に集める
@@ -955,11 +955,12 @@ LAW (Management Sub)
   │
   ▼
 Storage Account (stlawarchive<region>)
+  ├── Access tier: Cold（Archive 移行までの一時層コスト最小化）
+  ├── Immutability policy: Terraform で自動設定（Unlocked 状態）
   └── Container: "am-law-archive"
       ├── Lifecycle Policy: 即座に Archive tier へ移行（※）
       ├── Blob versioning: 有効
-      ├── Blob soft delete: 30日
-      └── 不変ポリシー (WORM): 手動で設定 ← 削除不可を保証
+      └── Blob soft delete: 30日
 ```
 
 > ※ Azure のライフサイクルポリシーは 1 日 1 回実行のため、Blob 作成後 ~24 時間以内に Archive tier に移行します。Data Export で Blob が書き込まれる際の初期層は制御できないため、これが最速です。
@@ -968,7 +969,7 @@ Storage Account (stlawarchive<region>)
 
 | リソース | 説明 |
 |:---|:---|
-| **Storage Account** | GRS（geo 冗長）、TLS 1.2、パブリックアクセス無効 |
+| **Storage Account** | GRS（geo 冗長）、Cold tier、TLS 1.2、不変性有効、パブリックアクセス無効 |
 | **Container** | `am-law-archive` — エクスポート先 |
 | **Lifecycle Policy** | 作成後即座に Archive tier へ移行（コスト最小化） |
 | **Data Export Rule** | LAW の指定テーブルを自動エクスポート |
@@ -1014,17 +1015,19 @@ Storage Account (stlawarchive<region>)
 | **Defender** | `ProtectionStatus` | マルウェア対策の状態 |
 | | `ThreatIntelligenceIndicator` | 脅威インテリジェンス IOC |
 
-##### 不変ポリシー（WORM）の手動設定
+##### 不変ポリシー（WORM）
 
-Terraform で Storage Account を作成した後、Azure Portal で不変ポリシーを設定します。
-`law_archive_retention_days` で指定した日数を不変ポリシーの保持期間と合わせてください。
+Terraform が Storage Account 作成時にバージョンレベルの不変ポリシーを自動設定します。
 
-1. Azure Portal → ストレージアカウント → コンテナー → `am-law-archive`
-2. **アクセスポリシー** → **不変 Blob ストレージのバージョンレベルのポリシーを追加**
-3. **Time-based retention** を選択し、保持期間（例: 365日）を設定
-4. ポリシーを**ロック**（ロック後は短縮不可）
+| 設定 | 値 | 説明 |
+|:---|:---|:---|
+| `state` | `Unlocked` | ポリシーの延長・削除が可能な状態（Terraform 管理用） |
+| `period_since_creation_in_days` | `law_archive_retention_days` の値 | Blob 作成後の保護期間 |
+| `allow_protected_append_writes` | `true` | Data Export による追記を許可 |
 
-> **注意**: 不変ポリシーのロック後は、保持期間内の Blob は削除・上書きが不可能になります。`terraform destroy` を実行する場合は、先に Azure Portal でコンテナの不変ポリシーを解除（またはロック前であれば削除）してから実行してください。不変ポリシーを設定していない状態であれば、`terraform destroy` で通常どおり削除されます。
+> **本番運用でのロック**: コンプライアンス要件で削除不可を厳密に保証する場合は、Terraform デプロイ後に Azure Portal でポリシーを **Locked** に変更してください。ロック後は保持期間の短縮・ポリシーの削除が不可能になります。
+
+> **`terraform destroy` 時の注意**: Unlocked 状態であれば `terraform destroy` で通常どおり削除されます。Locked 状態の場合はポリシー保持期間内の Blob が削除不可のため、先に Azure Portal でポリシーを解除してから実行してください。
 
 ##### アーカイブデータの分析
 
