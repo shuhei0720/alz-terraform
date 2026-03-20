@@ -61,7 +61,7 @@ hub_virtual_networks = {
 # Spoke が接続する Hub キー。
 # null（デフォルト）= 各 Spoke YAML の virtual_network.hub_key に従う
 # "primary" or "secondary" = 全 Spoke を強制切替（DR オーバーライド）
-# active_hub_key = "secondary"
+active_hub_key = "secondary"
 
 # =============================================================================
 # DNS
