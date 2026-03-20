@@ -31,6 +31,7 @@ jobs:
   deploy:
     name: Plan & Apply
     runs-on: ubuntu-latest
+    environment: azure
     if: github.event.inputs.action != 'destroy'
 
     steps:
@@ -62,6 +63,7 @@ jobs:
   destroy:
     name: Destroy
     runs-on: ubuntu-latest
+    environment: azure
     if: github.event.inputs.action == 'destroy'
 
     steps:

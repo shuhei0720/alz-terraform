@@ -13,7 +13,7 @@ resource "azurerm_log_analytics_workspace" "main" {
   allow_resource_only_permissions = true
   internet_ingestion_enabled      = true
   internet_query_enabled          = true
-  local_authentication_enabled    = true
+  local_authentication_enabled    = false
 
   tags = var.tags
 }
