@@ -26,7 +26,7 @@ tags = {
 
 log_analytics_retention_days = 360
 sentinel_enabled             = true
-law_archive_retention_days   = 2555  # 約7年（コンプライアンス要件）
+law_archive_retention_days   = 2555 # 約7年（コンプライアンス要件）
 
 # =============================================================================
 # Network

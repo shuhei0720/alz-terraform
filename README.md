@@ -83,7 +83,7 @@ alz-terraform/
 │  ── リソース定義 ────────────────────────────────────────────
 ├── management-groups.tf          # 管理グループ 11 個 + サブスクリプション配置
 ├── resource-groups.tf            # リソースグループ 4 種
-├── management-resources.tf       # Log Analytics, Sentinel, UAMI, DCR × 3
+├── management-resources.tf       # Log Analytics, Sentinel, UAMI, DCR × 3, LAW アーカイブ
 ├── network-hub.tf                # Hub VNet, Firewall, Bastion, DNS Resolver, ExpressRoute, ルートテーブル
 ├── network-dns.tf                # Private DNS ゾーン 56 個 + VNet リンク
 ├── policy.tf                     # ポリシーデプロイエンジン
@@ -903,6 +903,8 @@ Management サブスクリプションに監視の中核リソースを集約し
 | **DCR: Change Tracking** | Windows レジストリ/ファイル/サービスの変更検出結果を LAW に収集 |
 | **DCR: Defender for SQL** | SQL 脆弱性アラート/ログイン/テレメトリを LAW に収集 |
 | **Change Tracking Solution** | Change Tracking 機能の有効化（Legacy Solution） |
+| **Storage Account（LAW アーカイブ）** | LAW ログの長期アーカイブ先（GRS、Archive tier、WORM 対応） |
+| **Data Export Rule** | LAW の指定テーブルを Blob Storage に自動エクスポート |
 
 ### Log Analytics Workspace（LAW）— ログを一か所に集める
 
@@ -921,6 +923,115 @@ Enterprise 環境では数十のサブスクリプション、数百のリソー
 | **自動化** — ログベースのアクションを組みにくい | アラートルールで閾値超過時に自動通知・自動修復 |
 
 本構成では、Azure Policy により **全サブスクリプションのリソースが自動的にこの LAW にログを送信** するよう強制されています。手動設定は不要です。
+
+#### LAW ログアーカイブ（Blob Storage）
+
+LAW のログを長期保存・監査対応するため、Blob Storage へのアーカイブ機能を提供しています。
+`law_archive_retention_days` に保持日数を指定すると有効化されます（0 = アーカイブ無効）。
+
+##### tfvars での設定
+
+```hcl
+# terraform.tfvars
+log_analytics_retention_days = 30    # LAW 上のデータ保持（分析用・短期）
+law_archive_retention_days   = 365   # Blob アーカイブの保持日数（0 = 無効）
+
+# エクスポートテーブルをカスタマイズする場合（省略時はデフォルト値を使用）
+# law_archive_export_tables = ["SecurityEvent", "AzureActivity", "Syslog"]
+```
+
+| 変数 | 説明 | デフォルト |
+|:---|:---|:---|
+| `log_analytics_retention_days` | LAW 内のデータ保持日数（30〜730） | 30 |
+| `law_archive_retention_days` | Blob アーカイブの保持日数。0 = 無効 | 0 |
+| `law_archive_export_tables` | エクスポートするテーブル名のリスト | 全 34 テーブル |
+
+##### アーキテクチャ
+
+```
+LAW (Management Sub)
+  │
+  ├── Data Export Rule (テーブル単位・ニアリアルタイム)
+  │
+  ▼
+Storage Account (stlawarchive<region>)
+  └── Container: "am-law-archive"
+      ├── Lifecycle Policy: 即座に Archive tier へ移行（※）
+      ├── Blob versioning: 有効
+      ├── Blob soft delete: 30日
+      └── 不変ポリシー (WORM): 手動で設定 ← 削除不可を保証
+```
+
+> ※ Azure のライフサイクルポリシーは 1 日 1 回実行のため、Blob 作成後 ~24 時間以内に Archive tier に移行します。Data Export で Blob が書き込まれる際の初期層は制御できないため、これが最速です。
+
+##### リソース一覧
+
+| リソース | 説明 |
+|:---|:---|
+| **Storage Account** | GRS（geo 冗長）、TLS 1.2、パブリックアクセス無効 |
+| **Container** | `am-law-archive` — エクスポート先 |
+| **Lifecycle Policy** | 作成後即座に Archive tier へ移行（コスト最小化） |
+| **Data Export Rule** | LAW の指定テーブルを自動エクスポート |
+
+##### エクスポート対象テーブル（デフォルト）
+
+`var.law_archive_export_tables` で変更可能です。全 34 テーブル。
+
+| カテゴリ | テーブル | 内容 |
+|:---|:---|:---|
+| **セキュリティ** | `SecurityEvent` | Windows セキュリティイベント（ログオン、権限変更等） |
+| | `SecurityAlert` | Defender 各種アラート |
+| | `SecurityIncident` | セキュリティインシデント（Sentinel） |
+| | `CommonSecurityLog` | CEF 形式のセキュリティログ |
+| **Entra ID** | `SigninLogs` | 対話型サインインログ |
+| | `AADNonInteractiveUserSignInLogs` | 非対話型サインイン |
+| | `AADServicePrincipalSignInLogs` | サービスプリンシパルのサインイン |
+| | `AADManagedIdentitySignInLogs` | マネージド ID のサインイン |
+| | `AuditLogs` | ユーザー・グループ変更等の監査ログ |
+| | `AADProvisioningLogs` | アプリ・HR プロビジョニングログ |
+| **監査** | `AzureActivity` | Azure 管理操作の全監査ログ |
+| | `ConfigurationChange` | OS 構成変更の検出 |
+| | `ConfigurationData` | OS 構成ベースライン |
+| **Azure Firewall** | `AZFWNetworkRule` | ネットワークルール処理（許可/拒否） |
+| | `AZFWApplicationRule` | アプリケーションルール処理（FQDN ベース） |
+| | `AZFWNatRule` | NAT/DNAT ルール処理 |
+| | `AZFWThreatIntel` | 脅威インテリジェンスによるブロック |
+| | `AZFWIdpsSignature` | IDPS（侵入検知・防止）検出 |
+| | `AZFWDnsQuery` | DNS プロキシクエリログ |
+| **DNS** | `DnsEvents` | DNS クエリ・応答イベント |
+| | `DnsInventory` | DNS サーバーインベントリ |
+| **監視** | `Heartbeat` | エージェント死活監視 |
+| | `Perf` | VM パフォーマンスカウンター |
+| | `InsightsMetrics` | VM Insights メトリクス |
+| | `VMConnection` | VM 間ネットワーク接続データ |
+| | `Event` | Windows イベントログ |
+| | `Syslog` | Linux syslog |
+| | `W3CIISLog` | IIS アクセスログ |
+| **更新管理** | `Update` | 利用可能な更新プログラム |
+| | `UpdateSummary` | パッチコンプライアンス状況 |
+| **Azure 診断** | `AzureDiagnostics` | リソース診断ログ（NSG, Key Vault, SQL 等） |
+| | `AzureMetrics` | リソースメトリクス |
+| **Defender** | `ProtectionStatus` | マルウェア対策の状態 |
+| | `ThreatIntelligenceIndicator` | 脅威インテリジェンス IOC |
+
+##### 不変ポリシー（WORM）の手動設定
+
+Terraform で Storage Account を作成した後、Azure Portal で不変ポリシーを設定します。
+`law_archive_retention_days` で指定した日数を不変ポリシーの保持期間と合わせてください。
+
+1. Azure Portal → ストレージアカウント → コンテナー → `am-law-archive`
+2. **アクセスポリシー** → **不変 Blob ストレージのバージョンレベルのポリシーを追加**
+3. **Time-based retention** を選択し、保持期間（例: 365日）を設定
+4. ポリシーを**ロック**（ロック後は短縮不可）
+
+> **注意**: 不変ポリシーのロック後は、保持期間内の Blob は削除・上書きが不可能になります。`terraform destroy` を実行する場合は、先に Azure Portal でコンテナの不変ポリシーを解除（またはロック前であれば削除）してから実行してください。不変ポリシーを設定していない状態であれば、`terraform destroy` で通常どおり削除されます。
+
+##### アーカイブデータの分析
+
+Archive tier のデータは直接読み取れません。分析が必要な場合：
+
+1. Azure Portal で対象 Blob を **リハイドレート**（Archive → Hot/Cool に復元、Standard 優先度で最大 15 時間）
+2. LAW に再取り込み、または Azure Data Explorer の外部テーブルとして KQL でクエリ
 
 ### AMBA（Azure Monitor Baseline Alerts）— ベストプラクティスのアラートを自動設定
 
@@ -988,103 +1099,6 @@ VM 上の AMA エージェント
   → LAW（Log Analytics Workspace）にデータ送信
   → Sentinel / アラートルールが検知・通知
 ```
-
-### LAW ログアーカイブ（Blob Storage）
-
-LAW のログを長期保存・監査対応するため、Blob Storage へのアーカイブ機能を提供しています。
-`law_archive_retention_days` に保持日数を指定すると有効化されます（0 = アーカイブ無効）。
-
-#### tfvars での設定
-
-```hcl
-# terraform.tfvars
-log_analytics_retention_days = 30    # LAW 上のデータ保持（分析用・短期）
-law_archive_retention_days   = 365   # Blob アーカイブの保持日数（0 = 無効）
-
-# エクスポートテーブルをカスタマイズする場合（省略時はデフォルト値を使用）
-# law_archive_export_tables = ["SecurityEvent", "AzureActivity", "Syslog"]
-```
-
-| 変数 | 説明 | デフォルト |
-|:---|:---|:---|
-| `log_analytics_retention_days` | LAW 内のデータ保持日数（30〜730） | 30 |
-| `law_archive_retention_days` | Blob アーカイブの保持日数。0 = 無効 | 0 |
-| `law_archive_export_tables` | エクスポートするテーブル名のリスト | 主要 9 テーブル |
-
-#### アーキテクチャ
-
-```
-LAW (Management Sub)
-  │
-  ├── Data Export Rule (テーブル単位・ニアリアルタイム)
-  │
-  ▼
-Storage Account (stlawarchive<region>)
-  └── Container: "am-law-archive"
-      ├── Lifecycle Policy: 即座に Archive tier へ移行（※）
-      ├── Blob versioning: 有効
-      ├── Blob soft delete: 30日
-      └── 不変ポリシー (WORM): 手動で設定 ← 削除不可を保証
-```
-
-> ※ Azure のライフサイクルポリシーは 1 日 1 回実行のため、Blob 作成後 ~24 時間以内に Archive tier に移行します。Data Export で Blob が書き込まれる際の初期層は制御できないため、これが最速です。
-
-#### リソース一覧
-
-| リソース | 説明 |
-|:---|:---|
-| **Storage Account** | GRS（geo 冗長）、TLS 1.2、パブリックアクセス無効 |
-| **Container** | `am-law-archive` — エクスポート先 |
-| **Lifecycle Policy** | 作成後即座に Archive tier へ移行（コスト最小化） |
-| **Data Export Rule** | LAW の指定テーブルを自動エクスポート |
-
-#### エクスポート対象テーブル（デフォルト）
-
-`var.law_archive_export_tables` で変更可能です。
-
-| カテゴリ | テーブル | 内容 |
-|:---|:---|:---|
-| **セキュリティ** | `SecurityEvent` | Windows セキュリティイベント（ログオン、権限変更等） |
-| | `SecurityAlert` | Defender 各種アラート |
-| | `SecurityIncident` | セキュリティインシデント（Sentinel） |
-| | `CommonSecurityLog` | CEF 形式のセキュリティログ |
-| **Entra ID** | `SigninLogs` | 対話型サインインログ |
-| | `AADNonInteractiveUserSignInLogs` | 非対話型サインイン |
-| | `AADServicePrincipalSignInLogs` | サービスプリンシパルのサインイン |
-| | `AADManagedIdentitySignInLogs` | マネージド ID のサインイン |
-| | `AuditLogs` | ユーザー・グループ変更等の監査ログ |
-| **監査** | `AzureActivity` | Azure 管理操作の全監査ログ |
-| | `ConfigurationChange` | OS 構成変更の検出 |
-| | `ConfigurationData` | OS 構成ベースライン |
-| **監視** | `Heartbeat` | エージェント死活監視 |
-| | `Perf` | VM パフォーマンスカウンター |
-| | `InsightsMetrics` | VM Insights メトリクス |
-| | `Event` | Windows イベントログ |
-| | `Syslog` | Linux syslog |
-| | `W3CIISLog` | IIS アクセスログ |
-| **Azure 診断** | `AzureDiagnostics` | リソース診断ログ（NSG, Key Vault, SQL 等） |
-| | `AzureMetrics` | リソースメトリクス |
-| **Defender** | `ProtectionStatus` | マルウェア対策の状態 |
-| | `ThreatIntelligenceIndicator` | 脅威インテリジェンス IOC |
-
-#### 不変ポリシー（WORM）の手動設定
-
-Terraform で Storage Account を作成した後、Azure Portal で不変ポリシーを設定します。
-`law_archive_retention_days` で指定した日数を不変ポリシーの保持期間と合わせてください。
-
-1. Azure Portal → ストレージアカウント → コンテナー → `am-law-archive`
-2. **アクセスポリシー** → **不変 Blob ストレージのバージョンレベルのポリシーを追加**
-3. **Time-based retention** を選択し、保持期間（例: 365日）を設定
-4. ポリシーを**ロック**（ロック後は短縮不可）
-
-> **注意**: 不変ポリシーのロック後は、保持期間内の Blob は削除・上書きが不可能になります。`terraform destroy` を実行する場合は、先に Azure Portal でコンテナの不変ポリシーを解除（またはロック前であれば削除）してから実行してください。不変ポリシーを設定していない状態であれば、`terraform destroy` で通常どおり削除されます。
-
-#### アーカイブデータの分析
-
-Archive tier のデータは直接読み取れません。分析が必要な場合：
-
-1. Azure Portal で対象 Blob を **リハイドレート**（Archive → Hot/Cool に復元、Standard 優先度で最大 15 時間）
-2. LAW に再取り込み、または Azure Data Explorer の外部テーブルとして KQL でクエリ
 
 ---
 
