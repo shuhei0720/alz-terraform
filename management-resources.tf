@@ -275,7 +275,7 @@ resource "azurerm_storage_account" "law_archive" {
   account_tier                  = "Standard"
   account_replication_type      = "GRS"
   account_kind                  = "StorageV2"
-  access_tier                   = "Cool"
+  access_tier                   = "Cold"
   https_traffic_only_enabled    = true
   min_tls_version               = "TLS1_2"
   public_network_access_enabled = false
@@ -289,6 +289,14 @@ resource "azurerm_storage_account" "law_archive" {
     container_delete_retention_policy {
       days = 30
     }
+  }
+
+  # バージョンレベルの不変性を有効化（作成時のみ設定可能）
+  # コンテナ/Blob 単位で Time-based retention を適用可能にする
+  immutability_policy {
+    allow_protected_append_writes = true # Data Export の追記を許可
+    period_since_creation_in_days = var.law_archive_retention_days
+    state                         = "Unlocked"
   }
 }
 
