@@ -64,7 +64,7 @@ jobs:
         run: |
           set +e
           terraform plan -no-color -input=false -lock-timeout=60m -out=tfplan -detailed-exitcode 2>&1 | tee plan-output.txt
-          EXIT_CODE=$?
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
           if [[ $EXIT_CODE -eq 0 ]]; then
