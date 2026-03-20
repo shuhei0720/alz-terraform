@@ -275,7 +275,7 @@ resource "azurerm_storage_account" "law_archive" {
   account_tier                  = "Standard"
   account_replication_type      = "GRS"
   account_kind                  = "StorageV2"
-  access_tier                   = "Cold"
+  access_tier                   = "Hot" # Hot→Archive即移行でペナルティ回避（Cold/Coolは早期削除ペナルティ発生）
   https_traffic_only_enabled    = true
   min_tls_version               = "TLS1_2"
   public_network_access_enabled = false
