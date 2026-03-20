@@ -65,6 +65,51 @@ variable "sentinel_enabled" {
   default     = true
 }
 
+variable "law_archive_retention_days" {
+  description = "LAW ログの Blob アーカイブ保持日数。0 = アーカイブ無効"
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.law_archive_retention_days >= 0
+    error_message = "保持日数は 0 以上で指定してください。0 = アーカイブ無効。"
+  }
+}
+
+variable "law_archive_export_tables" {
+  description = "Data Export Rule でエクスポートするテーブル名のリスト"
+  type        = list(string)
+  default = [
+    # --- セキュリティ・コンプライアンス（監査必須）---
+    "SecurityEvent",           # Windows セキュリティイベント（ログオン、権限変更等）
+    "SecurityAlert",           # Defender 各種アラート
+    "SecurityIncident",        # セキュリティインシデント（Sentinel）
+    "CommonSecurityLog",       # CEF 形式のセキュリティログ（ファイアウォール、IDS 等）
+    "AzureActivity",           # Azure 管理操作の監査ログ（ARM 操作全件）
+    "SigninLogs",              # Entra ID サインインログ（対話型）
+    "AADNonInteractiveUserSignInLogs", # Entra ID 非対話型サインイン
+    "AADServicePrincipalSignInLogs",   # サービスプリンシパルのサインイン
+    "AADManagedIdentitySignInLogs",    # マネージド ID のサインイン
+    "AuditLogs",               # Entra ID 監査ログ（ユーザー・グループ変更等）
+    # --- 構成管理・変更追跡 ---
+    "ConfigurationChange",     # OS 構成変更の検出結果
+    "ConfigurationData",       # OS 構成ベースライン
+    # --- オペレーション・監視 ---
+    "Heartbeat",               # エージェント死活監視
+    "Perf",                    # VM パフォーマンスカウンター
+    "InsightsMetrics",         # VM Insights メトリクス
+    "Event",                   # Windows イベントログ（Application, System）
+    "Syslog",                  # Linux syslog
+    "W3CIISLog",               # IIS アクセスログ
+    # --- Azure リソース診断 ---
+    "AzureDiagnostics",        # Azure リソースの診断ログ（NSG, Key Vault, SQL 等）
+    "AzureMetrics",            # Azure リソースメトリクス
+    # --- Defender ---
+    "ProtectionStatus",        # マルウェア対策の状態
+    "ThreatIntelligenceIndicator", # 脅威インテリジェンス IOC
+  ]
+}
+
 # =============================================================================
 # Network
 # =============================================================================

@@ -24,8 +24,9 @@ tags = {
 # Management Resources
 # =============================================================================
 
-log_analytics_retention_days = 30
+log_analytics_retention_days = 30     # LAW \u5185\u306e\u30c7\u30fc\u30bf\u4fdd\u6301\uff08\u5206\u6790\u7528\u30fb\u77ed\u671f\uff09
 sentinel_enabled             = true
+law_archive_retention_days   = 0      # Blob \u30a2\u30fc\u30ab\u30a4\u30d6\u4fdd\u6301\u65e5\u6570\uff080 = \u7121\u52b9\u3001\u4f8b: 365\uff09
 
 # =============================================================================
 # Network

@@ -260,3 +260,83 @@ resource "azapi_resource" "dcr_defender_sql" {
     }
   }
 }
+
+# =============================================================================
+# LAW Archive — Storage Account + Data Export Rule
+# =============================================================================
+
+resource "azurerm_storage_account" "law_archive" {
+  count = var.law_archive_retention_days > 0 ? 1 : 0
+
+  provider                      = azurerm.management
+  name                          = "stlawarchive${replace(var.primary_location, " ", "")}"
+  location                      = var.primary_location
+  resource_group_name           = azurerm_resource_group.management.name
+  account_tier                  = "Standard"
+  account_replication_type      = "GRS"
+  account_kind                  = "StorageV2"
+  access_tier                   = "Cool"
+  https_traffic_only_enabled    = true
+  min_tls_version               = "TLS1_2"
+  public_network_access_enabled = false
+  tags                          = var.tags
+
+  blob_properties {
+    versioning_enabled = true
+    delete_retention_policy {
+      days = 30
+    }
+    container_delete_retention_policy {
+      days = 30
+    }
+  }
+}
+
+resource "azurerm_storage_container" "law_archive" {
+  count = var.law_archive_retention_days > 0 ? 1 : 0
+
+  name               = "am-law-archive"
+  storage_account_id = azurerm_storage_account.law_archive[0].id
+}
+
+# Lifecycle Policy: 即座に Archive tier に移行（コスト最小化）
+resource "azurerm_storage_management_policy" "law_archive" {
+  count = var.law_archive_retention_days > 0 ? 1 : 0
+
+  storage_account_id = azurerm_storage_account.law_archive[0].id
+
+  rule {
+    name    = "archive-immediately"
+    enabled = true
+
+    filters {
+      blob_types   = ["blockBlob"]
+      prefix_match = ["am-law-archive/"]
+    }
+
+    actions {
+      base_blob {
+        tier_to_archive_after_days_since_creation_greater_than = 0
+      }
+    }
+  }
+}
+
+# Data Export Rule: LAW の指定テーブルを Storage Account にニアリアルタイムで自動エクスポート
+resource "azapi_resource" "law_data_export" {
+  count = var.law_archive_retention_days > 0 ? 1 : 0
+
+  type      = "Microsoft.OperationalInsights/workspaces/dataExports@2020-08-01"
+  name      = "export-to-archive"
+  parent_id = azurerm_log_analytics_workspace.main.id
+
+  body = {
+    properties = {
+      destination = {
+        resourceId = azurerm_storage_account.law_archive[0].id
+      }
+      tableNames = var.law_archive_export_tables
+      enable     = true
+    }
+  }
+}

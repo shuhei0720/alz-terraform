@@ -33,6 +33,11 @@ output "log_analytics_workspace_name" {
   value       = azurerm_log_analytics_workspace.main.name
 }
 
+output "law_archive_storage_account_id" {
+  description = "LAW アーカイブ用 Storage Account のリソース ID"
+  value       = var.law_archive_retention_days > 0 ? azurerm_storage_account.law_archive[0].id : null
+}
+
 # =============================================================================
 # Monitoring
 # =============================================================================
