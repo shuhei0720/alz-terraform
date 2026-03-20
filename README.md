@@ -903,7 +903,7 @@ Management サブスクリプションに監視の中核リソースを集約し
 | **DCR: Change Tracking** | Windows レジストリ/ファイル/サービスの変更検出結果を LAW に収集 |
 | **DCR: Defender for SQL** | SQL 脆弱性アラート/ログイン/テレメトリを LAW に収集 |
 | **Change Tracking Solution** | Change Tracking 機能の有効化（Legacy Solution） |
-| **Storage Account（LAW アーカイブ）** | LAW ログの長期アーカイブ先（GRS、Cold tier → Archive tier、不変性有効） |
+| **Storage Account（LAW アーカイブ）** | LAW ログの長期アーカイブ先（GRS、Hot → Archive tier、不変性有効） |
 | **Data Export Rule** | LAW の指定テーブルを Blob Storage に自動エクスポート |
 
 ### Log Analytics Workspace（LAW）— ログを一か所に集める
@@ -955,7 +955,7 @@ LAW (Management Sub)
   │
   ▼
 Storage Account (stlawarchive<region>)
-  ├── Access tier: Cold（Archive 移行までの一時層コスト最小化）
+  ├── Access tier: Hot（→ Archive 即移行で早期削除ペナルティ回避）
   ├── Immutability policy: Terraform で自動設定（Unlocked 状態）
   └── Container: "am-law-archive"
       ├── Lifecycle Policy: 即座に Archive tier へ移行（※）
@@ -963,13 +963,13 @@ Storage Account (stlawarchive<region>)
       └── Blob soft delete: 30日
 ```
 
-> ※ Azure のライフサイクルポリシーは 1 日 1 回実行のため、Blob 作成後 ~24 時間以内に Archive tier に移行します。Data Export で Blob が書き込まれる際の初期層は制御できないため、これが最速です。
+> ※ Azure のライフサイクルポリシーは 1 日 1 回実行のため、Blob 作成後 ~24 時間以内に Archive tier に移行します。アカウントの access tier を Hot に設定しているのは、Cool（30日）や Cold（90日）と異なり **Hot tier には最低保持期間がなく、即時移動でも早期削除ペナルティが発生しない** ためです。
 
 ##### リソース一覧
 
 | リソース | 説明 |
 |:---|:---|
-| **Storage Account** | GRS（geo 冗長）、Cold tier、TLS 1.2、不変性有効、パブリックアクセス無効 |
+| **Storage Account** | GRS（geo 冗長）、Hot tier、TLS 1.2、不変性有効、パブリックアクセス無効 |
 | **Container** | `am-law-archive` — エクスポート先 |
 | **Lifecycle Policy** | 作成後即座に Archive tier へ移行（コスト最小化） |
 | **Data Export Rule** | LAW の指定テーブルを自動エクスポート |
