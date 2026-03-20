@@ -81,31 +81,46 @@ variable "law_archive_export_tables" {
   type        = list(string)
   default = [
     # --- セキュリティ・コンプライアンス（監査必須）---
-    "SecurityEvent",           # Windows セキュリティイベント（ログオン、権限変更等）
-    "SecurityAlert",           # Defender 各種アラート
-    "SecurityIncident",        # セキュリティインシデント（Sentinel）
-    "CommonSecurityLog",       # CEF 形式のセキュリティログ（ファイアウォール、IDS 等）
-    "AzureActivity",           # Azure 管理操作の監査ログ（ARM 操作全件）
-    "SigninLogs",              # Entra ID サインインログ（対話型）
+    "SecurityEvent",                   # Windows セキュリティイベント（ログオン、権限変更等）
+    "SecurityAlert",                   # Defender 各種アラート
+    "SecurityIncident",                # セキュリティインシデント（Sentinel）
+    "CommonSecurityLog",               # CEF 形式のセキュリティログ（ファイアウォール、IDS 等）
+    "AzureActivity",                   # Azure 管理操作の監査ログ（ARM 操作全件）
+    "SigninLogs",                      # Entra ID サインインログ（対話型）
     "AADNonInteractiveUserSignInLogs", # Entra ID 非対話型サインイン
     "AADServicePrincipalSignInLogs",   # サービスプリンシパルのサインイン
     "AADManagedIdentitySignInLogs",    # マネージド ID のサインイン
-    "AuditLogs",               # Entra ID 監査ログ（ユーザー・グループ変更等）
+    "AuditLogs",                       # Entra ID 監査ログ（ユーザー・グループ変更等）
+    "AADProvisioningLogs",             # Entra ID プロビジョニングログ（アプリ・HR 連携）
+    # --- Azure Firewall（ALZ ハブ コアコンポーネント）---
+    "AZFWNetworkRule",     # Firewall ネットワークルール処理（許可/拒否）
+    "AZFWApplicationRule", # Firewall アプリケーションルール処理（FQDN ベース）
+    "AZFWNatRule",         # Firewall NAT/DNAT ルール処理
+    "AZFWThreatIntel",     # Firewall 脅威インテリジェンスによるブロック
+    "AZFWIdpsSignature",   # Firewall IDPS（侵入検知・防止）検出
+    "AZFWDnsQuery",        # Firewall DNS プロキシクエリログ
+    # --- DNS ---
+    "DnsEvents",    # DNS クエリ・応答イベント（DNS トンネリング検出にも有用）
+    "DnsInventory", # DNS サーバーインベントリ
     # --- 構成管理・変更追跡 ---
-    "ConfigurationChange",     # OS 構成変更の検出結果
-    "ConfigurationData",       # OS 構成ベースライン
+    "ConfigurationChange", # OS 構成変更の検出結果
+    "ConfigurationData",   # OS 構成ベースライン
     # --- オペレーション・監視 ---
-    "Heartbeat",               # エージェント死活監視
-    "Perf",                    # VM パフォーマンスカウンター
-    "InsightsMetrics",         # VM Insights メトリクス
-    "Event",                   # Windows イベントログ（Application, System）
-    "Syslog",                  # Linux syslog
-    "W3CIISLog",               # IIS アクセスログ
+    "Heartbeat",       # エージェント死活監視
+    "Perf",            # VM パフォーマンスカウンター
+    "InsightsMetrics", # VM Insights メトリクス
+    "VMConnection",    # VM 間ネットワーク接続データ（Service Map / 横展開検出）
+    "Event",           # Windows イベントログ（Application, System）
+    "Syslog",          # Linux syslog
+    "W3CIISLog",       # IIS アクセスログ
+    # --- 更新管理 ---
+    "Update",        # 利用可能な更新プログラム
+    "UpdateSummary", # パッチコンプライアンス状況
     # --- Azure リソース診断 ---
-    "AzureDiagnostics",        # Azure リソースの診断ログ（NSG, Key Vault, SQL 等）
-    "AzureMetrics",            # Azure リソースメトリクス
+    "AzureDiagnostics", # Azure リソースの診断ログ（NSG, Key Vault, SQL 等）
+    "AzureMetrics",     # Azure リソースメトリクス
     # --- Defender ---
-    "ProtectionStatus",        # マルウェア対策の状態
+    "ProtectionStatus",            # マルウェア対策の状態
     "ThreatIntelligenceIndicator", # 脅威インテリジェンス IOC
   ]
 }
