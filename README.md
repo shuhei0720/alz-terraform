@@ -1477,21 +1477,28 @@ PR 作成/更新
 
 #### Terraform CD（`cd.yaml`）
 
-main マージ時に自動 apply、手動実行で apply/destroy を選択できます。
+main マージ時に Plan → 承認 → Apply、手動実行で apply/destroy を選択できます。
+Plan の結果は Job Summary に出力され、承認者は **変更内容を確認した上で承認** できます。
 
 ```
-main マージ（push）→ deploy ジョブ: plan → plan ファイル保存 → apply
-手動（dispatch）  → action: apply  → deploy ジョブ
-                  → action: destroy → destroy ジョブ
+main マージ（push）→ Plan ジョブ: init → validate → plan（Summary に出力）
+                     → Apply ジョブ: 承認待ち → apply（plan ファイルを Artifact 経由で引き継ぎ）
+                     ※ plan で変更なしの場合、Apply ジョブはスキップ
+
+手動（dispatch）  → action: apply   → 上記と同じフロー
+                  → action: destroy → Plan Destroy ジョブ: plan -destroy（Summary に出力）
+                                       → Destroy ジョブ: 承認待ち → destroy
 ```
 
 | 設定 | 値 | 説明 |
 |:---|:---|:---|
 | **トリガー** | `push: branches: [main]` + `workflow_dispatch` | 自動 + 手動 |
-| **environment** | `azure` | apply / destroy 実行前に承認者の承認が必要 |
-| **plan ファイル** | `-out=tfplan` で保存後 apply | plan と apply の一貫性を保証（deploy のみ） |
-| **destroy** | `terraform destroy` 直接実行 | plan+apply の 2 ステップではなく 1 コマンドで実行 |
-| **terraform_wrapper** | `false`（destroy のみ） | exit code を正しく取得するため |
+| **Plan → 承認 → Apply** | 3 ステップ分離 | plan 結果を確認してから承認・apply |
+| **environment** | `azure`（Apply / Destroy のみ） | 承認者が Job Summary で plan 結果を確認後に承認 |
+| **plan Artifact** | `upload-artifact` → `download-artifact` | plan ファイルをジョブ間で引き継ぎ |
+| **変更なしスキップ** | `-detailed-exitcode` で判定 | 変更がない場合は Apply ジョブ自体をスキップ |
+| **Job Summary** | plan 出力を Summary に表示 | 承認画面から plan 結果へのリンクで確認可能 |
+| **terraform_wrapper** | `false`（Plan / Destroy） | exit code を正しく取得するため |
 
 #### Drift Detection（`drift-detection.yaml`）
 
