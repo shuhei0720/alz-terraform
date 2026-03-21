@@ -224,30 +224,17 @@ jobs:
       - name: Pre-Destroy Cleanup
         run: |
           set +e +o pipefail
-          # バージョンレベル不変性 (WORM) が有効な Storage Account は terraform destroy で削除不可
-          # (AccountProtectedFromDeletion) のため、事前に完全クリーンアップする。
-          #
-          # 手順の要約:
-          #   1. SA 名・RG 名を特定（state → tfvars フォールバック）
-          #   2. パブリックアクセスを有効化（データプレーン操作に必要）
-          #   3. アカウントキーを取得 → Blob 不変性ポリシー削除 → Blob 削除
-          #      ※ az CLI は --version-id 非対応のため REST API (SharedKey 認証) を使用
-          #   4. コンテナを管理プレーンで削除（データプレーンでは不変性有効コンテナ削除不可）
-          #   5. Storage Account を削除 → 確認
-          #   6. terraform state から law_archive 関連リソースを除外
+          # WORM (バージョンレベル不変性) 有効な Storage Account は terraform destroy で削除不可
+          # (AccountProtectedFromDeletion) のため、事前にクリーンアップする
 
-          # --- SA 名・RG 名を特定 ---
+          # SA 名・RG 名を特定（state → tfvars フォールバック）
           SA_ID=$(terraform state list 2>/dev/null | grep 'azurerm_storage_account.law_archive' || true)
           if [[ -n "$SA_ID" ]]; then
             SA_NAME=$(terraform state show "$SA_ID" | grep '^\s*name\s' | head -1 | awk -F'"' '{print $2}')
             RG_NAME=$(terraform state show "$SA_ID" | grep '^\s*resource_group_name\s' | awk -F'"' '{print $2}')
           else
-            # state にない場合（前回の state rm で除外済み等）は命名規則から復元
             LOCATION=$(grep -oP 'primary_location\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "")
-            if [[ -n "$LOCATION" ]]; then
-              SA_NAME="stlawarchive${LOCATION// /}"
-              RG_NAME="rg-management-${LOCATION// /}"
-            fi
+            [[ -n "$LOCATION" ]] && SA_NAME="stlawarchive${LOCATION// /}" && RG_NAME="rg-management-${LOCATION// /}"
           fi
 
           if [[ -z "$SA_NAME" ]]; then
@@ -255,121 +242,101 @@ jobs:
             exit 0
           fi
 
-          # Azure 上に存在するか確認
           if ! az storage account show -n "$SA_NAME" -g "$RG_NAME" -o none 2>/dev/null; then
             echo "Storage Account $SA_NAME not found in Azure"
-            # state に残っていれば除外
             for res in $(terraform state list 2>/dev/null | grep 'law_archive'); do
               terraform state rm "$res" || true
             done
             exit 0
           fi
 
-          echo "::notice::Cleaning up immutability-protected Storage Account: $SA_NAME (RG: $RG_NAME)"
+          echo "::notice::Cleaning up WORM-protected Storage Account: $SA_NAME"
 
-          # [1/6] パブリックアクセスを有効化（データプレーン操作に必要）
-          echo "  [1/6] Enabling public network access..."
+          # パブリックアクセス有効化（データプレーン操作に必要）
           az storage account update -n "$SA_NAME" -g "$RG_NAME" \
             --public-network-access Enabled --output none
           sleep 10
 
-          # [2/6] アカウントキーを取得
-          echo "  [2/6] Retrieving account key..."
+          # アカウントキー取得
           KEY=$(az storage account keys list -n "$SA_NAME" -g "$RG_NAME" \
             --query "[0].value" -o tsv)
 
-          # [3/6] ソフトデリート無効化
-          echo "  [3/6] Disabling soft-delete..."
+          # ソフトデリート無効化
           az storage account blob-service-properties update \
             --account-name "$SA_NAME" -g "$RG_NAME" \
             --enable-delete-retention false \
             --enable-container-delete-retention false \
             --output none 2>/dev/null || true
 
-          # [4/6] Blob 不変性ポリシー削除 → Blob 削除（REST API で全バージョン対応）
-          echo "  [4/6] Clearing blob immutability policies and deleting blobs..."
+          # Blob 不変性ポリシー削除 + Blob 削除（az CLI は --version-id 非対応のため REST API 使用）
           CONTAINERS=$(az storage container list --account-name "$SA_NAME" \
             --account-key "$KEY" --query "[].name" -o tsv 2>/dev/null || echo "")
           if [[ -n "$CONTAINERS" ]]; then
             python3 - "$SA_NAME" "$KEY" "$CONTAINERS" << 'PYEOF'
-          import json, subprocess, sys, os, hmac, hashlib, base64
+          import json, subprocess, sys, hmac, hashlib, base64
           import urllib.request, urllib.parse, urllib.error
           from datetime import datetime, timezone
 
-          acct, key_b64 = sys.argv[1], sys.argv[2]
-          containers = sys.argv[3].split()
+          acct, key_b64, containers = sys.argv[1], sys.argv[2], sys.argv[3].split()
           key_bytes = base64.b64decode(key_b64)
 
-          def rest_delete(container, blob_name, params):
-              url_path = f"/{container}/{urllib.parse.quote(blob_name, safe='/')}"
+          def rest_delete(container, blob, params):
+              path = f"/{container}/{urllib.parse.quote(blob, safe='/')}"
               now = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
-              headers = {"x-ms-date": now, "x-ms-version": "2021-12-02"}
-              canon_headers = "".join(f"{k}:{v}\n" for k, v in sorted(headers.items()))
-              canon_resource = f"/{acct}{url_path}"
-              for k in sorted(params.keys()):
-                  canon_resource += f"\n{k}:{params[k]}"
-              sts = f"DELETE\n\n\n\n\n\n\n\n\n\n\n\n{canon_headers}{canon_resource}"
-              sig = base64.b64encode(hmac.new(key_bytes, sts.encode(), hashlib.sha256).digest()).decode()
-              headers["Authorization"] = f"SharedKey {acct}:{sig}"
+              hdrs = {"x-ms-date": now, "x-ms-version": "2021-12-02"}
+              canon = "".join(f"{k}:{v}\n" for k, v in sorted(hdrs.items()))
+              res = f"/{acct}{path}" + "".join(f"\n{k}:{v}" for k, v in sorted(params.items()))
+              sig = base64.b64encode(hmac.new(key_bytes,
+                  f"DELETE\n\n\n\n\n\n\n\n\n\n\n\n{canon}{res}".encode(), hashlib.sha256
+              ).digest()).decode()
+              hdrs["Authorization"] = f"SharedKey {acct}:{sig}"
               qs = "&".join(f"{k}={v}" for k, v in params.items())
-              url = f"https://{acct}.blob.core.windows.net{url_path}{'?' + qs if qs else ''}"
-              req = urllib.request.Request(url, method="DELETE", headers=headers)
+              url = f"https://{acct}.blob.core.windows.net{path}{'?' + qs if qs else ''}"
               try:
-                  with urllib.request.urlopen(req) as r:
-                      return r.status
-              except urllib.error.HTTPError as e:
-                  return e.code
+                  urllib.request.urlopen(urllib.request.Request(url, method="DELETE", headers=hdrs))
+              except urllib.error.HTTPError:
+                  pass
 
           for c in containers:
-              # Current blobs: immutability-policy delete + blob delete (az CLI)
-              result = subprocess.run(
+              r = subprocess.run(
                   ["az", "storage", "blob", "list", "--account-name", acct, "-c", c,
                    "--account-key", key_b64, "--include", "v",
                    "--query", "[].{name:name,versionId:versionId}", "-o", "json"],
                   capture_output=True, text=True)
-              blobs = json.loads(result.stdout) if result.returncode == 0 else []
-              print(f"    Container {c}: {len(blobs)} blob(s)/version(s)")
+              blobs = json.loads(r.stdout) if r.returncode == 0 else []
               for b in blobs:
                   name, ver = b["name"], b.get("versionId") or ""
                   if ver:
-                      # Past versions: REST API required (az CLI lacks --version-id)
                       rest_delete(c, name, {"comp": "immutabilityPolicies", "versionid": ver})
                       rest_delete(c, name, {"versionid": ver})
                   else:
-                      # Current version: az CLI works
                       subprocess.run(["az", "storage", "blob", "immutability-policy", "delete",
                           "-c", c, "-n", name, "--account-name", acct, "--account-key", key_b64],
                           capture_output=True)
                       subprocess.run(["az", "storage", "blob", "delete",
                           "-c", c, "-n", name, "--account-name", acct, "--account-key", key_b64],
                           capture_output=True)
-              print(f"    Container {c}: done")
+              print(f"  Container {c}: {len(blobs)} blob(s) cleaned")
           PYEOF
           fi
 
-          # [5/6] コンテナを管理プレーンで削除（データプレーンでは不変性有効コンテナ削除不可）
-          echo "  [5/6] Deleting containers via management plane..."
+          # コンテナ削除（管理プレーン — データプレーンでは不変性有効コンテナ削除不可）
           for C in $CONTAINERS; do
             az storage container-rm delete \
               --storage-account "$SA_NAME" -g "$RG_NAME" -n "$C" --yes 2>&1 || true
           done
 
-          # [6/6] Storage Account を削除
-          echo "  [6/6] Deleting Storage Account..."
+          # Storage Account 削除
           az storage account delete -n "$SA_NAME" -g "$RG_NAME" --yes 2>&1
-
-          # 削除結果を確認
           sleep 5
           if az storage account show -n "$SA_NAME" -g "$RG_NAME" -o none 2>/dev/null; then
-            echo "::error::Storage Account $SA_NAME still exists after cleanup — manual intervention required"
+            echo "::error::Storage Account $SA_NAME still exists — manual intervention required"
           else
-            echo "::notice::Storage Account $SA_NAME confirmed deleted"
+            echo "::notice::Storage Account $SA_NAME deleted"
           fi
 
-          # terraform state から archive 関連リソースを除外
-          echo "  Removing law_archive resources from state..."
+          # state から law_archive 関連リソースを除外
           for res in $(terraform state list 2>/dev/null | grep 'law_archive'); do
-            echo "    Removing: $res"
             terraform state rm "$res" || true
           done
 
