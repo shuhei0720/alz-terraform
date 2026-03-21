@@ -127,3 +127,12 @@ output "vending_virtual_network_ids" {
     for k, v in azapi_resource.vending_vnet : k => v.id
   }
 }
+
+# =============================================================================
+# Dashboard
+# =============================================================================
+
+output "ops_dashboard_id" {
+  description = "基盤管理・運用ダッシュボード (Workbook) のリソース ID"
+  value       = var.ops_dashboard_enabled ? azurerm_application_insights_workbook.ops[0].id : null
+}
