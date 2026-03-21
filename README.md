@@ -87,6 +87,7 @@ alz-terraform/
 ├── network-hub.tf                # Hub VNet, Firewall, Bastion, DNS Resolver, ExpressRoute, ルートテーブル
 ├── network-dns.tf                # Private DNS ゾーン 56 個 + VNet リンク
 ├── policy.tf                     # ポリシーデプロイエンジン
+├── dashboard.tf                  # 基盤管理・運用ダッシュボード（Azure Monitor Workbook）
 ├── subscription-vending.tf       # YAML 駆動のサブスクリプション自動払い出し + Spoke アラートルーティング
 │
 │  ── ポリシーライブラリ ──────────────────────────────────────
@@ -138,6 +139,7 @@ alz-terraform/
 | 新しい DCR を追加したい | `management-resources.tf` にリソース追加 |
 | デプロイが失敗した場合の調査 | [リトライメカニズム一覧](#リトライメカニズム一覧) を確認 |
 | Spoke のアラート通知先を変更したい | `subscriptions/*.yaml` の `alert_contacts` を編集 |
+| 運用ダッシュボードを確認したい | Azure Portal → Monitor → Workbooks → 「基盤管理・運用ダッシュボード」 |
 
 ---
 
@@ -711,6 +713,57 @@ policy_default_values = {
 
 これにより、数百のポリシー割り当てに個別に LAW ID を設定する必要がなくなります。
 
+### ポリシー自動修復（DINE/Modify）
+
+Azure Policy の DINE（DeployIfNotExists）/ Modify ポリシーは、リソースの **作成・更新** 時に自動で修復タスクを適用します。
+しかし、**ポリシー割り当て前から存在するリソース** には自動適用されません。これらには明示的な修復タスク（Remediation Task）の作成が必要です。
+
+[参考：Azure Policy の修復タスク](https://learn.microsoft.com/ja-jp/azure/governance/policy/how-to/remediate-resources)
+
+#### なぜ Terraform リソースで修復しないのか
+
+`azurerm_management_group_policy_remediation` を使う方法もありますが、以下の問題があるため CD ワークフローで実装しています。
+
+| 問題 | 説明 |
+|:---|:---|
+| **イニシアティブの非互換** | `policy_definition_reference_id` を省略するとイニシアティブ（ポリシーセット）の修復が失敗する。ALZ/AMBA の DINE 割り当ての大半はイニシアティブ |
+| **一時的操作** | 修復タスクは「実行して完了」の操作であり、state で永続管理する対象ではない |
+| **スケーラビリティ** | イニシアティブのメンバーポリシーを展開すると数百の修復リソースが state に入り、plan が肥大化する |
+
+#### CD ワークフローでの自動修復
+
+`cd.yaml` の Apply ジョブ完了後に **Policy Remediation ステップ** が自動実行されます。
+
+```
+Terraform Apply 完了
+  → 全 DINE/Modify 割り当てを検出（identity 付き = DINE/Modify）
+  → イニシアティブ: メンバーポリシーを列挙し、各 ref ごとに修復タスク作成
+  → 単一ポリシー: 直接修復タスク作成
+  → --no-wait で非同期実行（CD の完了を待たない）
+```
+
+| 設定 | 説明 |
+|:---|:---|
+| `--resource-discovery-mode ReEvaluateCompliance` | 修復前にコンプライアンス再評価を強制（割り当て直後でも有効） |
+| `--no-wait` | 修復は非同期で実行。API レート制限を回避しつつ CD ジョブの完了を遅延させない |
+| タイムスタンプ付き名前 | `rem-{assignment}-{ref}-{YYYYMMDDHHMM}` で一意性を保証 |
+
+#### 後続デプロイ時の動作
+
+修復ステップは **毎回のデプロイで安全に実行** されるよう設計されています。
+
+| シナリオ | 動作 |
+|:---|:---|
+| ポリシー変更なし（VNet 追加等） | 既存の修復タスクが再作成されるが、`ReEvaluateCompliance` で全リソースが準拠済みと判定され何もしない（冪等） |
+| 新規ポリシー追加 | 新しい割り当ても検出対象に含まれ、修復タスクが作成される |
+| ポリシー削除 | 削除された割り当ては `az policy assignment list` に含まれないため、修復対象外 |
+| イニシアティブメンバー変更 | `az policy set-definition show` で最新メンバーを動的取得するため、追加・削除に自動追従 |
+| 前回の修復がまだ実行中 | Azure は同一割り当てへの複数修復を許容。先行タスクが修復済みのリソースは後続タスクでスキップ |
+| Apply 失敗時 | Apply ステップがエラーで終了するため、修復ステップは実行されない |
+| 変更なしデプロイ | Apply ジョブ自体がスキップされるため、修復ステップも実行されない |
+
+> **ポイント**: Azure Policy の評価サイクルは最大 24 時間のため、`ReEvaluateCompliance` で強制再評価している点が重要です。これにより、ポリシー割り当て直後でも既存リソースの修復が開始されます。
+
 ---
 
 ## サブスクリプション自動払い出し（Vending）
@@ -905,6 +958,7 @@ Management サブスクリプションに監視の中核リソースを集約し
 | **Change Tracking Solution** | Change Tracking 機能の有効化（Legacy Solution） |
 | **Storage Account（LAW アーカイブ）** | LAW ログの長期アーカイブ先（GRS、Hot → Archive tier、不変性有効） |
 | **Data Export Rule** | LAW の指定テーブルを Blob Storage に自動エクスポート |
+| **運用ダッシュボード（Workbook）** | 基盤全体の監視状況を 6 タブで一覧表示する Azure Monitor Workbook |
 
 ### Log Analytics Workspace（LAW）— ログを一か所に集める
 
@@ -1111,6 +1165,38 @@ VM 上の AMA エージェント
   → LAW（Log Analytics Workspace）にデータ送信
   → Sentinel / アラートルールが検知・通知
 ```
+
+### 運用ダッシュボード（Azure Monitor Workbook）
+
+基盤全体の監視状況を一元的に表示する Azure Monitor Workbook を `dashboard.tf` で定義しています。
+
+#### なぜ Workbook か
+
+| 観点 | Portal Dashboard | **Workbook（採用）** |
+|:---|:---|:---|
+| KQL | 限定的（ピン留めベース） | 複雑な KQL クエリ対応 |
+| パラメータ | なし | 時間範囲セレクタ等 |
+| タブ/構造化 | タイル固定 | タブ・グループで整理 |
+| Terraform 定義 | JSON が冗長 | `jsonencode` で管理しやすい |
+| 共有 | ダッシュボードメニュー | RG 内 RBAC で自動共有 |
+
+#### タブ構成
+
+| タブ | 内容 |
+|:---|:---|
+| **概要** | アクティブアラート、リソース正常性（ARG）、エージェント稼働、ポリシーコンプライアンス（ARG）、Azure 管理操作、サービス正常性 |
+| **セキュリティ** | セキュリティアラート推移、Sentinel インシデント、失敗サインイン Top 20、Entra ID 権限変更監査、Firewall 脅威インテリジェンス |
+| **ネットワーク** | Firewall ネットワークルール許可/拒否、アプリルール Top 20、IDPS 検知、DNS クエリ、拒否フロー Top 20 |
+| **コンピュート** | エージェント一覧（死活）、CPU / メモリ使用率、構成変更、パッチ適用状況 |
+| **コンプライアンス** | 管理グループ別コンプライアンス率（ARG）、非準拠ポリシー / リソース Top 20、Terraform 管理外リソース検出 |
+| **コスト・容量** | LAW データ取り込み量（テーブル別 / 日次トレンド）、サブスクリプション別リソース数、ストレージアカウント一覧 |
+
+#### 管理方針
+
+- **Terraform 完全管理**: 変更は `dashboard.tf` を編集して PR → レビュー → apply。Portal での直接編集は行わない（ドリフト防止）
+- **無効化**: `var.ops_dashboard_enabled = false` で Workbook を作成しない
+- **タブ追加**: `local.wb_tab_<name>` を追加し、`workbook_items` の `concat` に含めるだけ
+- **アクセス**: Azure Portal → Monitor → Workbooks → 「基盤管理・運用ダッシュボード」
 
 ---
 
@@ -1600,12 +1686,12 @@ PR 作成/更新
 
 #### Terraform CD（`cd.yaml`）
 
-main マージ時に Plan → 承認 → Apply、手動実行で apply/destroy を選択できます。
+main マージ時に Plan → 承認 → Apply → Policy Remediation、手動実行で apply/destroy を選択できます。
 Plan の結果は Job Summary に出力され、承認者は **変更内容を確認した上で承認** できます。
 
 ```
 main マージ（push）→ Plan ジョブ: init → validate → plan（Summary に出力）
-                     → Apply ジョブ: 承認待ち → apply（plan ファイルを Artifact 経由で引き継ぎ）
+                     → Apply ジョブ: 承認待ち → apply → Policy Remediation
                      ※ plan で変更なしの場合、Apply ジョブはスキップ
 
 手動（dispatch）  → action: apply   → 上記と同じフロー
@@ -1622,6 +1708,7 @@ main マージ（push）→ Plan ジョブ: init → validate → plan（Summary
 | **変更なしスキップ** | `-detailed-exitcode` で判定 | 変更がない場合は Apply ジョブ自体をスキップ |
 | **Job Summary** | plan 出力を Summary に表示 | 承認画面から plan 結果へのリンクで確認可能 |
 | **terraform_wrapper** | `false`（Plan / Destroy） | exit code を正しく取得するため |
+| **Policy Remediation** | Apply 後に自動実行 | DINE/Modify の既存リソース修復（[詳細](#ポリシー自動修復dinemodify)） |
 
 #### Drift Detection（`drift-detection.yaml`）
 
@@ -1900,6 +1987,14 @@ terraform import 'azurerm_resource_group.example' '/subscriptions/<SUB_ID>/resou
 import 後は `terraform plan` で差分がないことを確認してください。差分がある場合はコード側を実態に合わせて調整します。
 
 > **注意**: import はリモート state に直接書き込みます。事前に Blob のスナップショットを取得し、問題があればロールバックできるようにしておくことを推奨します。
+
+### Q: DINE/Modify ポリシーの修復はデプロイのたびに実行されるのか？
+
+はい。Apply ジョブの最後に全 DINE 割り当ての修復タスクが作成されます。既にリソースが準拠済みの場合は `ReEvaluateCompliance` で自動判定され何もしません（冪等）。そのため、毎回実行しても副作用はありません。VNet 追加のようなポリシー無関係の変更でも修復ステップは走りますが、準拠済みリソースは即座に完了するためデプロイ時間への影響は軽微です。変更がない場合は Apply ジョブ自体がスキップされるため、修復も実行されません。
+
+### Q: 運用ダッシュボードのカスタマイズ方法は？
+
+`dashboard.tf` の KQL クエリや Workbook 構造を編集し、PR → マージで反映します。タブの追加は `wb_tab_<name>` ローカルを追加し `workbook_items` の `concat` に含めるだけです。Portal での直接編集は Terraform ドリフトの原因になるため行わないでください。`var.ops_dashboard_enabled = false` で無効化できます。
 
 ### Q: このリポジトリをフォークして自社用にカスタマイズする手順は？
 

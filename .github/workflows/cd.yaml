@@ -143,6 +143,77 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -lock-timeout=60m tfplan
 
+      - name: Policy Remediation
+        run: |
+          set +e
+          # DINE/Modify ポリシーは新規リソースには自動適用されるが、
+          # 既存リソースには修復タスクが必要。
+          # identity を持つ割り当て = DINE/Modify を抽出し修復タスクを作成する。
+
+          ROOT_MG=$(grep -oP 'root_id\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "")
+          if [[ -z "$ROOT_MG" ]]; then
+            echo "Could not determine root_id — skipping remediation"
+            exit 0
+          fi
+
+          echo "::notice::Creating remediation tasks for DINE/Modify policies (root MG: $ROOT_MG)"
+
+          # 全管理グループ配下の DINE 割り当てを取得（identity 付き = DINE/Modify）
+          ASSIGNMENTS=$(az policy assignment list \
+            --scope "/providers/Microsoft.Management/managementGroups/$ROOT_MG" \
+            --query "[?identity.type].{name:name, id:id, policyDefinitionId:policyDefinitionId, scope:scope}" \
+            -o json 2>/dev/null || echo "[]")
+
+          COUNT=$(echo "$ASSIGNMENTS" | jq 'length')
+          echo "  Found $COUNT DINE/Modify assignments"
+
+          echo "$ASSIGNMENTS" | jq -c '.[]' | while IFS= read -r ITEM; do
+            NAME=$(echo "$ITEM" | jq -r '.name')
+            ID=$(echo "$ITEM" | jq -r '.id')
+            POLICY_DEF=$(echo "$ITEM" | jq -r '.policyDefinitionId')
+            SCOPE=$(echo "$ITEM" | jq -r '.scope')
+            MG_NAME=$(echo "$SCOPE" | grep -oP 'managementGroups/\K[^/]+' || echo "$ROOT_MG")
+            TS=$(date +%Y%m%d%H%M)
+
+            if [[ "$POLICY_DEF" == */policySetDefinitions/* ]]; then
+              # イニシアティブ: メンバーポリシーごとに修復タスクを作成
+              SET_NAME=$(basename "$POLICY_DEF")
+              REFS=$(az policy set-definition show \
+                --name "$SET_NAME" \
+                --management-group "$ROOT_MG" \
+                --query "policyDefinitions[].policyDefinitionReferenceId" \
+                -o tsv 2>/dev/null || true)
+
+              if [[ -z "$REFS" ]]; then
+                echo "  ⚠ $NAME: could not list initiative members — skipping"
+                continue
+              fi
+
+              REF_COUNT=$(echo "$REFS" | wc -l)
+              echo "  $NAME (initiative, $REF_COUNT members)"
+              echo "$REFS" | while IFS= read -r REF; do
+                az policy remediation create \
+                  --name "rem-${NAME}-${REF}-${TS}" \
+                  --management-group "$MG_NAME" \
+                  --policy-assignment "$ID" \
+                  --definition-reference-id "$REF" \
+                  --resource-discovery-mode ReEvaluateCompliance \
+                  -o none --no-wait 2>/dev/null || true
+              done
+            else
+              # 単一ポリシー: 直接修復
+              echo "  $NAME (single policy)"
+              az policy remediation create \
+                --name "rem-${NAME}-${TS}" \
+                --management-group "$MG_NAME" \
+                --policy-assignment "$ID" \
+                --resource-discovery-mode ReEvaluateCompliance \
+                -o none --no-wait 2>/dev/null || true
+            fi
+          done
+
+          echo "::notice::Remediation tasks created (running asynchronously)"
+
   # ===========================================================================
   # Destroy: Plan -destroy → 承認 → Destroy
   # ===========================================================================

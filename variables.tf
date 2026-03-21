@@ -308,3 +308,13 @@ variable "amba_alert_email" {
   type        = list(string)
   default     = []
 }
+
+# =============================================================================
+# Dashboard
+# =============================================================================
+
+variable "ops_dashboard_enabled" {
+  description = "基盤管理・運用ダッシュボード（Azure Monitor Workbook）を作成するか"
+  type        = bool
+  default     = true
+}
