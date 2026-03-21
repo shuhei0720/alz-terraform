@@ -223,16 +223,97 @@ jobs:
 
       - name: Pre-Destroy Cleanup
         run: |
+          set +e +o pipefail
           # バージョンレベル不変性が有効な Storage Account は terraform destroy で削除不可
-          # (AccountProtectedFromDeletion) のため、事前に az CLI で削除し state から除外する
+          # (AccountProtectedFromDeletion) のため、事前に以下の手順で完全クリーンアップする:
+          #   1. パブリックアクセスを有効化（データプレーン操作に必要）
+          #   2. アカウントキーを取得（Contributor ロールで可能、データプレーン RBAC 不要）
+          #   3. ソフトデリート無効化 → Blob 不変性ポリシー削除 → Blob 削除
+          #   4. Storage Account 削除 → 確認
+          #   5. terraform state から law_archive 関連リソースを除外
           SA_ID=$(terraform state list | grep 'azurerm_storage_account.law_archive' || true)
-          if [[ -n "$SA_ID" ]]; then
-            SA_NAME=$(terraform state show "$SA_ID" | grep '^\s*name\s' | head -1 | awk -F'"' '{print $2}')
-            RG_NAME=$(terraform state show "$SA_ID" | grep '^\s*resource_group_name\s' | awk -F'"' '{print $2}')
-            echo "::notice::Removing immutability-protected Storage Account: $SA_NAME (RG: $RG_NAME)"
-            az storage account delete --name "$SA_NAME" --resource-group "$RG_NAME" --yes 2>/dev/null || true
-            terraform state rm "$SA_ID" 2>/dev/null || true
+          if [[ -z "$SA_ID" ]]; then
+            echo "No law_archive Storage Account in state — skipping"
+            exit 0
           fi
+
+          SA_NAME=$(terraform state show "$SA_ID" | grep '^\s*name\s' | head -1 | awk -F'"' '{print $2}')
+          RG_NAME=$(terraform state show "$SA_ID" | grep '^\s*resource_group_name\s' | awk -F'"' '{print $2}')
+          echo "::notice::Cleaning up immutability-protected Storage Account: $SA_NAME (RG: $RG_NAME)"
+
+          # Azure 上に存在するか確認
+          if ! az storage account show -n "$SA_NAME" -g "$RG_NAME" -o none 2>/dev/null; then
+            echo "Storage Account not found in Azure — removing from state only"
+            for res in $(terraform state list | grep 'law_archive'); do
+              terraform state rm "$res" || true
+            done
+            exit 0
+          fi
+
+          # [1/5] パブリックアクセスを有効化（データプレーン操作に必要）
+          echo "  [1/5] Enabling public network access..."
+          az storage account update -n "$SA_NAME" -g "$RG_NAME" \
+            --public-network-access Enabled --output none
+          sleep 10
+
+          # [2/5] アカウントキーを取得
+          echo "  [2/5] Retrieving account key..."
+          KEY=$(az storage account keys list -n "$SA_NAME" -g "$RG_NAME" \
+            --query "[0].value" -o tsv)
+
+          if [[ -n "$KEY" ]]; then
+            # ソフトデリートを無効化（削除した Blob が残留しないように）
+            az storage account blob-service-properties update \
+              --account-name "$SA_NAME" -g "$RG_NAME" \
+              --delete-retention-days 0 --enable-delete-retention false \
+              --enable-container-delete-retention false \
+              --output none 2>/dev/null || true
+
+            # [3/5] 全 Blob の不変性ポリシーを削除し Blob を削除
+            echo "  [3/5] Clearing blob immutability policies and deleting blobs..."
+            CONTAINERS=$(az storage container list --account-name "$SA_NAME" \
+              --account-key "$KEY" --query "[].name" -o tsv 2>/dev/null || echo "")
+            for C in $CONTAINERS; do
+              echo "    Container: $C"
+              BLOBS=$(az storage blob list --account-name "$SA_NAME" -c "$C" \
+                --account-key "$KEY" --include v \
+                --query "[].{name:name,versionId:versionId}" -o tsv 2>/dev/null || echo "")
+              COUNT=0
+              while IFS=$'\t' read -r NAME VER; do
+                [[ -z "$NAME" ]] && continue
+                VER_ARGS=()
+                [[ -n "$VER" ]] && VER_ARGS=(--version-id "$VER")
+                az storage blob immutability-policy delete \
+                  --account-name "$SA_NAME" -c "$C" -b "$NAME" "${VER_ARGS[@]}" \
+                  --account-key "$KEY" 2>/dev/null || true
+                az storage blob delete \
+                  --account-name "$SA_NAME" -c "$C" -n "$NAME" "${VER_ARGS[@]}" \
+                  --account-key "$KEY" 2>/dev/null || true
+                COUNT=$((COUNT + 1))
+              done <<< "$BLOBS"
+              echo "    Processed $COUNT blob(s)/version(s)"
+            done
+          fi
+
+          # [4/5] Storage Account を削除
+          echo "  [4/5] Deleting Storage Account..."
+          az storage account delete -n "$SA_NAME" -g "$RG_NAME" --yes 2>&1
+
+          # 削除結果を確認
+          sleep 5
+          if az storage account show -n "$SA_NAME" -g "$RG_NAME" -o none 2>/dev/null; then
+            echo "::error::Storage Account $SA_NAME still exists after cleanup"
+            echo "::error::RG deletion will likely timeout — manual intervention required"
+          else
+            echo "::notice::Storage Account $SA_NAME confirmed deleted"
+          fi
+
+          # [5/5] terraform state から archive 関連リソースを除外
+          echo "  [5/5] Removing law_archive resources from state..."
+          for res in $(terraform state list | grep 'law_archive'); do
+            echo "    Removing: $res"
+            terraform state rm "$res" || true
+          done
 
       - name: Terraform Destroy
         run: |
