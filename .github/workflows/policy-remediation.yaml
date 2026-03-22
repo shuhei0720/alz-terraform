@@ -7,10 +7,6 @@ on:
     types: [completed]
     branches: [main]
 
-  # 日次スケジュール（既存リソースのドリフト修復）
-  schedule:
-    - cron: "0 3 * * *" # UTC 03:00 (JST 12:00)
-
   # 手動実行
   workflow_dispatch:
 
