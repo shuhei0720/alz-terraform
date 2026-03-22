@@ -59,15 +59,6 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      # ── 一回限りの State クリーンアップ ──────────────────────────────
-      # サブネットとピアリングの並列作成による Azure VNet 競合で
-      # snet-app が Azure 上から消失したが State には残っている。
-      # State からゴーストエントリを除去し、次の plan で再作成させる。
-      # TODO: 次回 apply 成功後にこのステップを削除すること。
-      - name: State Cleanup (one-time)
-        run: |
-          terraform state rm 'azapi_resource.vending_subnets["test-subscription/snet-app"]' 2>/dev/null || true
-
       - name: Terraform Plan
         id: plan
         run: |
@@ -173,13 +164,22 @@ jobs:
 
           echo "::notice::Creating remediation tasks for DINE/Modify policies (root MG: $ROOT_MG)"
 
-          # 全管理グループ配下の DINE 割り当てを取得（identity 付き = DINE/Modify）
-          # --disable-scope-strict-match: 子管理グループ配下の割り当ても含める
-          ASSIGNMENTS=$(az policy assignment list \
-            --scope "/providers/Microsoft.Management/managementGroups/$ROOT_MG" \
-            --disable-scope-strict-match \
-            --query "[?identity.type].{name:name, id:id, policyDefinitionId:policyDefinitionId, scope:scope}" \
-            -o json)
+          # 管理グループ階層を取得し、各スコープの DINE 割り当てを収集
+          # (--disable-scope-strict-match は管理グループスコープで非サポートのため
+          #  各管理グループを個別に照会する)
+          MG_LIST=$(az account management-group show \
+            --name "$ROOT_MG" --expand --recurse -o json \
+            | jq -r 'recurse(.children[]?) | .name')
+
+          ASSIGNMENTS="[]"
+          for MG in $MG_LIST; do
+            echo "  Scanning MG: $MG"
+            MG_ASSIGNMENTS=$(az policy assignment list \
+              --scope "/providers/Microsoft.Management/managementGroups/$MG" \
+              --query "[?identity.type].{name:name, id:id, policyDefinitionId:policyDefinitionId, scope:scope}" \
+              -o json 2>/dev/null || echo "[]")
+            ASSIGNMENTS=$(echo "$ASSIGNMENTS" "$MG_ASSIGNMENTS" | jq -s 'add | unique_by(.id)')
+          done
 
           COUNT=$(echo "$ASSIGNMENTS" | jq 'length')
           echo "  Found $COUNT DINE/Modify assignments"
