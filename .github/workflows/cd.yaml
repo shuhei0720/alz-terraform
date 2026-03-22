@@ -143,6 +143,23 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -lock-timeout=60m tfplan
 
+  # ===========================================================================
+  # Policy Remediation: DINE/Modify ポリシーの修復タスク作成
+  # ===========================================================================
+  remediation:
+    name: Policy Remediation
+    runs-on: ubuntu-latest
+    needs: [plan, apply]
+    if: |
+      always() &&
+      needs.plan.result == 'success' &&
+      (needs.apply.result == 'success' || needs.apply.result == 'skipped') &&
+      github.event.inputs.action != 'destroy'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Azure Login
         uses: azure/login@v2
         with:
