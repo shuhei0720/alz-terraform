@@ -51,17 +51,14 @@ locals {
     {
       type = 1
       content = {
-        json = join("\n", [
-          "# 基盤管理・運用ダッシュボード",
-          "ALZ 基盤の監視・運用状況を一元的に表示します。",
-        ])
+        json = "# 基盤管理・運用ダッシュボード\nALZ 基盤の監視・運用状況を一元的に表示します。タブを切り替えて各領域の詳細を確認してください。"
       }
       name = "heading"
     },
   ]
 
   # ========================================================
-  # グローバルパラメータ（時間範囲）
+  # グローバルパラメータ（時間範囲 + タブ選択）
   # ========================================================
   wb_parameters = [
     {
@@ -93,6 +90,7 @@ locals {
             version            = "KqlParameterItem/1.0"
             name               = "selectedTab"
             type               = 1
+            isRequired         = false
             isHiddenWhenLocked = true
             value              = "overview"
           },
@@ -113,12 +111,55 @@ locals {
         version = "LinkItem/1.0"
         style   = "tabs"
         links = [
-          { id = "tab-overview", cellValue = "overview", linkTarget = "parameter", linkLabel = "概要", subTarget = "selectedTab", style = "link", isDefault = true },
-          { id = "tab-security", cellValue = "security", linkTarget = "parameter", linkLabel = "セキュリティ", subTarget = "selectedTab", style = "link" },
-          { id = "tab-network", cellValue = "network", linkTarget = "parameter", linkLabel = "ネットワーク", subTarget = "selectedTab", style = "link" },
-          { id = "tab-compute", cellValue = "compute", linkTarget = "parameter", linkLabel = "コンピュート", subTarget = "selectedTab", style = "link" },
-          { id = "tab-compliance", cellValue = "compliance", linkTarget = "parameter", linkLabel = "コンプライアンス", subTarget = "selectedTab", style = "link" },
-          { id = "tab-cost", cellValue = "cost", linkTarget = "parameter", linkLabel = "コスト・容量", subTarget = "selectedTab", style = "link" },
+          {
+            id         = "tab-overview"
+            cellValue  = "overview"
+            linkTarget = "parameter"
+            linkLabel  = "📊 概要"
+            subTarget  = "selectedTab"
+            style      = "link"
+            isDefault  = true
+          },
+          {
+            id         = "tab-security"
+            cellValue  = "security"
+            linkTarget = "parameter"
+            linkLabel  = "🛡️ セキュリティ"
+            subTarget  = "selectedTab"
+            style      = "link"
+          },
+          {
+            id         = "tab-network"
+            cellValue  = "network"
+            linkTarget = "parameter"
+            linkLabel  = "🌐 ネットワーク"
+            subTarget  = "selectedTab"
+            style      = "link"
+          },
+          {
+            id         = "tab-compute"
+            cellValue  = "compute"
+            linkTarget = "parameter"
+            linkLabel  = "💻 コンピュート"
+            subTarget  = "selectedTab"
+            style      = "link"
+          },
+          {
+            id         = "tab-compliance"
+            cellValue  = "compliance"
+            linkTarget = "parameter"
+            linkLabel  = "✅ コンプライアンス"
+            subTarget  = "selectedTab"
+            style      = "link"
+          },
+          {
+            id         = "tab-cost"
+            cellValue  = "cost"
+            linkTarget = "parameter"
+            linkLabel  = "💰 コスト・容量"
+            subTarget  = "selectedTab"
+            style      = "link"
+          },
         ]
       }
       name = "tabs"
@@ -135,6 +176,13 @@ locals {
         version   = "NotebookGroup/1.0"
         groupType = "editable"
         items = [
+          {
+            type = 1
+            content = {
+              json = "## 概要\n基盤全体の健全性を一目で把握できるサマリーです。アラート状況、リソース正常性、エージェント稼働、ポリシー準拠状況を表示します。"
+            }
+            name = "overview-description"
+          },
           # --- アクティブアラート ---
           {
             type = 3
@@ -149,13 +197,17 @@ locals {
                 "    Medium = countif(AlertSeverity == 'Medium'),",
                 "    Low = countif(AlertSeverity == 'Low')",
               ])
-              size          = 4
-              title         = "アクティブアラート"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "tiles"
+              size                    = 4
+              title                   = "アクティブアラート"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "tiles"
               tileSettings = {
-                titleContent = { columnMatch = "High", formatter = 12, formatOptions = { palette = "redBright" } }
+                titleContent     = { columnMatch = "High", formatter = 12, formatOptions = { palette = "redBright" } }
+                leftContent      = { columnMatch = "Medium", formatter = 12, formatOptions = { palette = "orange" } }
+                secondaryContent = { columnMatch = "Low", formatter = 12, formatOptions = { palette = "blue" } }
+                showBorder       = true
               }
             }
             name        = "active-alerts"
@@ -178,7 +230,13 @@ locals {
               resourceType            = "microsoft.resourcegraph/resources"
               crossComponentResources = [local.root_mg_id]
               visualization           = "piechart"
-              chartSettings           = { seriesLabelSettings = [{ seriesName = "Available", color = "green" }, { seriesName = "Unavailable", color = "redBright" }, { seriesName = "Degraded", color = "orange" }] }
+              chartSettings = {
+                seriesLabelSettings = [
+                  { seriesName = "Available", label = "正常", color = "green" },
+                  { seriesName = "Unavailable", label = "利用不可", color = "redBright" },
+                  { seriesName = "Degraded", label = "低下", color = "orange" },
+                ]
+              }
             }
             name        = "resource-health"
             customWidth = "33"
@@ -194,12 +252,18 @@ locals {
                 "| extend Status = iff(LastHeartbeat < ago(5m), 'Offline', 'Online')",
                 "| summarize Count = count() by Status",
               ])
-              size          = 4
-              title         = "エージェント稼働"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "piechart"
-              chartSettings = { seriesLabelSettings = [{ seriesName = "Online", color = "green" }, { seriesName = "Offline", color = "redBright" }] }
+              size                    = 4
+              title                   = "エージェント稼働"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "piechart"
+              chartSettings = {
+                seriesLabelSettings = [
+                  { seriesName = "Online", label = "稼働中", color = "green" },
+                  { seriesName = "Offline", label = "停止", color = "redBright" },
+                ]
+              }
             }
             name        = "agent-summary"
             customWidth = "34"
@@ -221,7 +285,12 @@ locals {
               resourceType            = "microsoft.resourcegraph/resources"
               crossComponentResources = [local.root_mg_id]
               visualization           = "piechart"
-              chartSettings           = { seriesLabelSettings = [{ seriesName = "Compliant", color = "green" }, { seriesName = "NonCompliant", color = "redBright" }] }
+              chartSettings = {
+                seriesLabelSettings = [
+                  { seriesName = "Compliant", label = "準拠", color = "green" },
+                  { seriesName = "NonCompliant", label = "非準拠", color = "redBright" },
+                ]
+              }
             }
             name        = "policy-overview"
             customWidth = "50"
@@ -235,15 +304,21 @@ locals {
                 "AzureActivity",
                 "| where TimeGenerated {TimeRange}",
                 "| where CategoryValue in ('Administrative', 'Security', 'Policy')",
-                "| where ActivityStatusValue != 'Started'",
+                "| where ActivityStatusValue !in ('Started', 'Accepted')",
                 "| summarize Count = count() by CategoryValue, ActivityStatusValue",
                 "| sort by Count desc",
               ])
-              size          = 1
-              title         = "Azure 管理操作"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "Azure 管理操作"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "Count", formatter = 4, formatOptions = { palette = "blue" } },
+                ]
+              }
             }
             name        = "activity-summary"
             customWidth = "50"
@@ -295,6 +370,13 @@ locals {
         version   = "NotebookGroup/1.0"
         groupType = "editable"
         items = [
+          {
+            type = 1
+            content = {
+              json = "## セキュリティ\nMicrosoft Defender for Cloud、Sentinel、Entra ID のセキュリティイベントを監視します。アラート推移、インシデント、認証失敗、権限変更を追跡できます。"
+            }
+            name = "security-description"
+          },
           # --- セキュリティアラート推移 ---
           {
             type = 3
@@ -306,11 +388,19 @@ locals {
                 "| summarize Count = count() by AlertSeverity, bin(TimeGenerated, 1h)",
                 "| render timechart",
               ])
-              size          = 0
-              title         = "セキュリティアラート推移"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "timechart"
+              size                    = 0
+              title                   = "セキュリティアラート推移"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "timechart"
+              chartSettings = {
+                seriesLabelSettings = [
+                  { seriesName = "High", color = "redBright" },
+                  { seriesName = "Medium", color = "orange" },
+                  { seriesName = "Low", color = "blue" },
+                ]
+              }
             }
             name = "security-alerts-trend"
           },
@@ -327,11 +417,17 @@ locals {
                 "| summarize Count = count() by severity, status",
                 "| sort by Count desc",
               ])
-              size          = 1
-              title         = "Sentinel インシデント"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "Sentinel インシデント"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "Count", formatter = 4, formatOptions = { palette = "redBright" } },
+                ]
+              }
             }
             name        = "sentinel-incidents"
             customWidth = "50"
@@ -349,11 +445,17 @@ locals {
                 "| sort by FailCount desc",
                 "| take 20",
               ])
-              size          = 1
-              title         = "失敗したサインイン Top 20"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "失敗したサインイン Top 20"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "FailCount", formatter = 4, formatOptions = { palette = "redBright" } },
+                ]
+              }
             }
             name        = "failed-signins"
             customWidth = "50"
@@ -374,11 +476,12 @@ locals {
                 "| sort by TimeGenerated desc",
                 "| take 30",
               ])
-              size          = 1
-              title         = "Entra ID 権限変更の監査"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "Entra ID 権限変更の監査"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
             }
             name = "audit-role-changes"
           },
@@ -394,11 +497,12 @@ locals {
                 "| sort by TimeGenerated desc",
                 "| take 50",
               ])
-              size          = 1
-              title         = "Firewall 脅威インテリジェンス検知"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "Firewall 脅威インテリジェンス検知"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
             }
             name = "threat-intel"
           },
@@ -423,6 +527,13 @@ locals {
         version   = "NotebookGroup/1.0"
         groupType = "editable"
         items = [
+          {
+            type = 1
+            content = {
+              json = "## ネットワーク\nAzure Firewall のトラフィック監視です。ネットワークルール・アプリケーションルールの許可/拒否状況、IDPS 検知、DNS クエリ統計を確認できます。"
+            }
+            name = "network-description"
+          },
           # --- Firewall 許可/拒否 ---
           {
             type = 3
@@ -434,11 +545,18 @@ locals {
                 "| summarize Allowed = countif(Action == 'Allow'), Denied = countif(Action == 'Deny') by bin(TimeGenerated, 1h)",
                 "| render timechart",
               ])
-              size          = 0
-              title         = "ネットワークルール 許可 / 拒否"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "timechart"
+              size                    = 0
+              title                   = "ネットワークルール 許可 / 拒否"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "timechart"
+              chartSettings = {
+                seriesLabelSettings = [
+                  { seriesName = "Allowed", label = "許可", color = "green" },
+                  { seriesName = "Denied", label = "拒否", color = "redBright" },
+                ]
+              }
             }
             name = "fw-network-rules"
           },
@@ -454,11 +572,17 @@ locals {
                 "| sort by Count desc",
                 "| take 20",
               ])
-              size          = 1
-              title         = "アプリケーションルール Top 20"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "アプリケーションルール Top 20"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "Count", formatter = 4, formatOptions = { palette = "blue" } },
+                ]
+              }
             }
             name        = "fw-app-rules"
             customWidth = "50"
@@ -475,11 +599,17 @@ locals {
                 "| sort by HitCount desc",
                 "| take 20",
               ])
-              size          = 1
-              title         = "Firewall IDPS 検知"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "Firewall IDPS 検知"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "HitCount", formatter = 4, formatOptions = { palette = "redBright" } },
+                ]
+              }
             }
             name        = "fw-idps"
             customWidth = "50"
@@ -496,11 +626,17 @@ locals {
                 "| sort by QueryCount desc",
                 "| take 20",
               ])
-              size          = 1
-              title         = "Firewall DNS クエリ Top 20"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "Firewall DNS クエリ Top 20"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "QueryCount", formatter = 4, formatOptions = { palette = "blue" } },
+                ]
+              }
             }
             name        = "fw-dns"
             customWidth = "50"
@@ -518,11 +654,17 @@ locals {
                 "| sort by DenyCount desc",
                 "| take 20",
               ])
-              size          = 1
-              title         = "拒否されたフロー Top 20"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "拒否されたフロー Top 20"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "DenyCount", formatter = 4, formatOptions = { palette = "redBright" } },
+                ]
+              }
             }
             name        = "fw-denied-flows"
             customWidth = "50"
@@ -548,6 +690,13 @@ locals {
         version   = "NotebookGroup/1.0"
         groupType = "editable"
         items = [
+          {
+            type = 1
+            content = {
+              json = "## コンピュート\nVM およびエージェントの監視です。AMA エージェント稼働状況、CPU / メモリ使用率、構成変更、パッチ適用状況を確認できます。"
+            }
+            name = "compute-description"
+          },
           # --- エージェント一覧 ---
           {
             type = 3
@@ -559,11 +708,12 @@ locals {
                 "| extend Status = iff(LastHeartbeat < ago(5m), '🔴 Offline', '🟢 Online')",
                 "| sort by Status asc, Computer asc",
               ])
-              size          = 1
-              title         = "エージェント一覧"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "エージェント一覧"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
             }
             name = "agent-list"
           },
@@ -580,11 +730,18 @@ locals {
                 "| sort by AvgCPU desc",
                 "| take 15",
               ])
-              size          = 1
-              title         = "CPU 使用率（平均・最大）"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "CPU 使用率（平均・最大）"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "AvgCPU", formatter = 4, formatOptions = { min = 0, max = 100, palette = "redBright" } },
+                  { columnMatch = "MaxCPU", formatter = 4, formatOptions = { min = 0, max = 100, palette = "orange" } },
+                ]
+              }
             }
             name        = "cpu-usage"
             customWidth = "50"
@@ -602,11 +759,18 @@ locals {
                 "| sort by AvgAvailMB asc",
                 "| take 15",
               ])
-              size          = 1
-              title         = "メモリ空き容量（平均・最小）"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "メモリ空き容量（平均・最小）"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "AvgAvailMB", formatter = 4, formatOptions = { palette = "blue" } },
+                  { columnMatch = "MinAvailMB", formatter = 4, formatOptions = { palette = "orange" } },
+                ]
+              }
             }
             name        = "memory-usage"
             customWidth = "50"
@@ -623,11 +787,17 @@ locals {
                 "| sort by Changes desc",
                 "| take 30",
               ])
-              size          = 1
-              title         = "構成変更"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "構成変更"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "Changes", formatter = 4, formatOptions = { palette = "blue" } },
+                ]
+              }
             }
             name        = "config-changes"
             customWidth = "50"
@@ -648,11 +818,17 @@ locals {
                 "    LastAssessed = TimeGenerated",
                 "| sort by CriticalMissing desc",
               ])
-              size          = 1
-              title         = "パッチ適用状況"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "table"
+              size                    = 1
+              title                   = "パッチ適用状況"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "CriticalMissing", formatter = 18, formatOptions = { thresholdsOptions = "icons", thresholdsGrid = [{ operator = ">", thresholdValue = "0", representation = "4", text = "{0}{1}" }, { operator = "Default", representation = "success", text = "{0}{1}" }] } },
+                ]
+              }
             }
             name        = "update-compliance"
             customWidth = "50"
@@ -678,6 +854,13 @@ locals {
         version   = "NotebookGroup/1.0"
         groupType = "editable"
         items = [
+          {
+            type = 1
+            content = {
+              json = "## コンプライアンス\nAzure Policy の準拠状況と IaC ドリフト検知です。管理グループ別コンプライアンス率、非準拠ポリシー・リソースの詳細、Terraform 管理外リソースを特定できます。"
+            }
+            name = "compliance-description"
+          },
           # --- 管理グループ別コンプライアンス ---
           {
             type = 3
@@ -698,6 +881,12 @@ locals {
               resourceType            = "microsoft.resourcegraph/resources"
               crossComponentResources = [local.root_mg_id]
               visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "ComplianceRate", formatter = 4, formatOptions = { min = 0, max = 100, palette = "greenRed" } },
+                  { columnMatch = "NonCompliant", formatter = 4, formatOptions = { palette = "redBright" } },
+                ]
+              }
             }
             name = "compliance-by-mg"
           },
@@ -722,6 +911,11 @@ locals {
               resourceType            = "microsoft.resourcegraph/resources"
               crossComponentResources = [local.root_mg_id]
               visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "NonCompliant", formatter = 4, formatOptions = { palette = "redBright" } },
+                ]
+              }
             }
             name        = "noncompliant-policies"
             customWidth = "50"
@@ -773,6 +967,11 @@ locals {
               resourceType            = "microsoft.resourcegraph/resources"
               crossComponentResources = [local.root_mg_id]
               visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "Count", formatter = 4, formatOptions = { palette = "orange" } },
+                ]
+              }
             }
             name = "iac-drift"
           },
@@ -797,6 +996,13 @@ locals {
         version   = "NotebookGroup/1.0"
         groupType = "editable"
         items = [
+          {
+            type = 1
+            content = {
+              json = "## コスト・容量\nLog Analytics ワークスペースのデータ取り込み量、リソース利用状況を可視化します。コスト最適化やキャパシティプランニングに活用してください。"
+            }
+            name = "cost-description"
+          },
           # --- LAW データ取り込み量（テーブル別） ---
           {
             type = 3
@@ -809,11 +1015,12 @@ locals {
                 "| sort by IngestGB desc",
                 "| take 20",
               ])
-              size          = 1
-              title         = "LAW データ取り込み量（テーブル別）"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "barchart"
+              size                    = 1
+              title                   = "LAW データ取り込み量（テーブル別）"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "barchart"
             }
             name        = "ingestion-by-table"
             customWidth = "50"
@@ -829,11 +1036,12 @@ locals {
                 "| summarize DailyGB = round(sum(Quantity) / 1000, 2) by bin(TimeGenerated, 1d)",
                 "| render timechart",
               ])
-              size          = 0
-              title         = "LAW データ取り込みトレンド（日次）"
-              queryType     = 0
-              resourceType  = "microsoft.operationalinsights/workspaces"
-              visualization = "timechart"
+              size                    = 0
+              title                   = "LAW データ取り込みトレンド（日次）"
+              queryType               = 0
+              resourceType            = "microsoft.operationalinsights/workspaces"
+              crossComponentResources = [local.law_id_lower]
+              visualization           = "timechart"
             }
             name        = "ingestion-trend"
             customWidth = "50"
@@ -855,6 +1063,11 @@ locals {
               resourceType            = "microsoft.resourcegraph/resources"
               crossComponentResources = [local.root_mg_id]
               visualization           = "table"
+              gridSettings = {
+                formatters = [
+                  { columnMatch = "ResourceCount", formatter = 4, formatOptions = { palette = "blue" } },
+                ]
+              }
             }
             name        = "resource-count"
             customWidth = "50"

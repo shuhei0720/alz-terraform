@@ -1,0 +1,125 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/Azure-Landing-Zones-Library/main/schemas/default_policy_values.json",
+  "defaults": [
+    {
+      "default_name": "mdfc_enable_servers",
+      "description": "Enable Microsoft Defender for Servers.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForServers"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_servers_vulnerability_assessments",
+      "description": "Enable Microsoft Defender Vulnerability Assessments for Servers.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForServersVulnerabilityAssessments"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_sql",
+      "description": "Enable Microsoft Defender for SQL.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForSql"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_app_services",
+      "description": "Enable Microsoft Defender for App Services.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForAppServices"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_storage",
+      "description": "Enable Microsoft Defender for Storage.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForStorage"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_containers",
+      "description": "Enable Microsoft Defender for Containers.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForContainers"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_key_vault",
+      "description": "Enable Microsoft Defender for Key Vault.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForKeyVault"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_sql_on_vm",
+      "description": "Enable Microsoft Defender for SQL on VM.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForSqlOnVm"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_oss_db",
+      "description": "Enable Microsoft Defender for Open-source relational databases.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForOssDb"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_cosmos_dbs",
+      "description": "Enable Microsoft Defender for Cosmos DB.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForCosmosDbs"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_cspm",
+      "description": "Enable Microsoft Defender Cloud Security Posture Management (CSPM).",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForCspm"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    },
+    {
+      "default_name": "mdfc_enable_arm",
+      "description": "Enable Microsoft Defender for Resource Manager.",
+      "policy_assignments": [
+        {
+          "parameter_names": ["enableAscForArm"],
+          "policy_assignment_name": "Deploy-MDFC-Config-H224"
+        }
+      ]
+    }
+  ]
+}

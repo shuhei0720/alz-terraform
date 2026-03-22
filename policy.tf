@@ -161,6 +161,36 @@ data "alz_architecture" "this" {
         webhookServiceUri   = []
       }
     })
+
+    # =========================================================================
+    # ALZ: Microsoft Defender for Cloud (MDFC)
+    # =========================================================================
+    # Deploy-MDFC-Config-H224 のセキュリティ連絡先・エクスポート設定
+    email_security_contact = jsonencode({
+      value = length(var.amba_alert_email) > 0 ? var.amba_alert_email[0] : ""
+    })
+
+    resource_group_name_mdfc = jsonencode({
+      value = "rg-mdfc-export-${var.primary_location}"
+    })
+
+    resource_group_location = jsonencode({
+      value = var.primary_location
+    })
+
+    # Defender for Cloud プラン有効化（全プラン DeployIfNotExists）
+    mdfc_enable_servers                           = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_servers_vulnerability_assessments = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_sql                               = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_app_services                      = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_storage                           = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_containers                        = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_key_vault                         = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_sql_on_vm                         = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_oss_db                            = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_cosmos_dbs                        = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_cspm                              = jsonencode({ value = "DeployIfNotExists" })
+    mdfc_enable_arm                               = jsonencode({ value = "DeployIfNotExists" })
   }
 }
 
