@@ -28,8 +28,9 @@ locals {
   )
 
   # 共通参照
-  law_id_lower = lower(azurerm_log_analytics_workspace.main.id)
-  root_mg_id   = azurerm_management_group.root.id
+  law_id_lower  = lower(azurerm_log_analytics_workspace.main.id)
+  root_mg_id    = azurerm_management_group.root.id
+  cross_sub_ids = [for v in values(var.subscription_ids) : "/subscriptions/${v}"]
 
   # ---- Workbook 構造 ----
   workbook_items = concat(
@@ -219,7 +220,7 @@ locals {
             content = {
               version = "KqlItem/1.0"
               query = join("\n", [
-                "ServiceHealthResources",
+                "HealthResources",
                 "| where type == 'microsoft.resourcehealth/availabilitystatuses'",
                 "| extend status = tostring(properties.availabilityState)",
                 "| summarize Count = count() by status",
@@ -228,7 +229,7 @@ locals {
               title                   = "リソース正常性"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "piechart"
               chartSettings = {
                 seriesLabelSettings = [
@@ -283,7 +284,7 @@ locals {
               title                   = "ポリシーコンプライアンス"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "piechart"
               chartSettings = {
                 seriesLabelSettings = [
@@ -304,7 +305,7 @@ locals {
                 "AzureActivity",
                 "| where TimeGenerated {TimeRange}",
                 "| where CategoryValue in ('Administrative', 'Security', 'Policy')",
-                "| where ActivityStatusValue !in ('Started', 'Accepted')",
+                "| where ActivityStatusValue !in ('Start', 'Accept')",
                 "| summarize Count = count() by CategoryValue, ActivityStatusValue",
                 "| sort by Count desc",
               ])
@@ -344,18 +345,18 @@ locals {
               title                   = "Azure サービス正常性（アクティブイベント）"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "table"
             }
             name = "service-health"
           },
         ]
       }
-      conditionalVisibility = {
+      conditionalVisibilities = [{
         parameterName = "selectedTab"
         comparison    = "isEqualTo"
         value         = "overview"
-      }
+      }]
       name = "group-overview"
     },
   ]
@@ -508,11 +509,11 @@ locals {
           },
         ]
       }
-      conditionalVisibility = {
+      conditionalVisibilities = [{
         parameterName = "selectedTab"
         comparison    = "isEqualTo"
         value         = "security"
-      }
+      }]
       name = "group-security"
     },
   ]
@@ -671,11 +672,11 @@ locals {
           },
         ]
       }
-      conditionalVisibility = {
+      conditionalVisibilities = [{
         parameterName = "selectedTab"
         comparison    = "isEqualTo"
         value         = "network"
-      }
+      }]
       name = "group-network"
     },
   ]
@@ -835,11 +836,11 @@ locals {
           },
         ]
       }
-      conditionalVisibility = {
+      conditionalVisibilities = [{
         parameterName = "selectedTab"
         comparison    = "isEqualTo"
         value         = "compute"
-      }
+      }]
       name = "group-compute"
     },
   ]
@@ -879,7 +880,7 @@ locals {
               title                   = "管理グループ別コンプライアンス率"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "table"
               gridSettings = {
                 formatters = [
@@ -909,7 +910,7 @@ locals {
               title                   = "非準拠リソースが多いポリシー Top 20"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "table"
               gridSettings = {
                 formatters = [
@@ -939,7 +940,7 @@ locals {
               title                   = "非準拠リソース一覧"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "table"
             }
             name        = "noncompliant-resources"
@@ -965,7 +966,7 @@ locals {
               title                   = "Terraform 管理外リソース（deployed_by タグなし）"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "table"
               gridSettings = {
                 formatters = [
@@ -977,11 +978,11 @@ locals {
           },
         ]
       }
-      conditionalVisibility = {
+      conditionalVisibilities = [{
         parameterName = "selectedTab"
         comparison    = "isEqualTo"
         value         = "compliance"
-      }
+      }]
       name = "group-compliance"
     },
   ]
@@ -1061,7 +1062,7 @@ locals {
               title                   = "サブスクリプション別リソース数"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "table"
               gridSettings = {
                 formatters = [
@@ -1088,7 +1089,7 @@ locals {
               title                   = "ストレージアカウント一覧"
               queryType               = 1
               resourceType            = "microsoft.resourcegraph/resources"
-              crossComponentResources = [local.root_mg_id]
+              crossComponentResources = local.cross_sub_ids
               visualization           = "table"
             }
             name        = "storage-accounts"
@@ -1096,11 +1097,11 @@ locals {
           },
         ]
       }
-      conditionalVisibility = {
+      conditionalVisibilities = [{
         parameterName = "selectedTab"
         comparison    = "isEqualTo"
         value         = "cost"
-      }
+      }]
       name = "group-cost"
     },
   ]
