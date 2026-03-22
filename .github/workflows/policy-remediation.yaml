@@ -10,6 +10,10 @@ on:
   # 手動実行
   workflow_dispatch:
 
+concurrency:
+  group: policy-remediation
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read
