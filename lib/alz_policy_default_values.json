@@ -120,6 +120,16 @@
           "policy_assignment_name": "Deploy-MDFC-Config-H224"
         }
       ]
+    },
+    {
+      "default_name": "svc_health_action_group_resources",
+      "description": "Action group resources for Service Health alerts (email, webhook, etc.).",
+      "policy_assignments": [
+        {
+          "parameter_names": ["actionGroupResources"],
+          "policy_assignment_name": "Deploy-SvcHealth-BuiltIn"
+        }
+      ]
     }
   ]
 }
