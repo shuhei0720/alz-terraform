@@ -244,7 +244,7 @@ jobs:
                   --policy-assignment "$ID" \
                   --definition-reference-id "$REF" \
                   --resource-discovery-mode ReEvaluateCompliance \
-                  -o none --no-wait 2>&1; then
+                  -o none 2>&1; then
                   CREATED=$((CREATED + 1))
                 else
                   echo "    ⚠ Failed to create remediation for $REF"
@@ -259,7 +259,7 @@ jobs:
                 --management-group "$MG_NAME" \
                 --policy-assignment "$ID" \
                 --resource-discovery-mode ReEvaluateCompliance \
-                -o none --no-wait 2>&1; then
+                -o none 2>&1; then
                 CREATED=$((CREATED + 1))
               else
                 echo "    ⚠ Failed to create remediation for $NAME"
