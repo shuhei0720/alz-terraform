@@ -433,8 +433,15 @@ resource "azapi_resource" "vending_spoke_to_hub" {
     max_interval_seconds = 300
   }
 
+  # サブネット作成が完了してからピアリングを開始する。
+  # 同一 VNet への並列 PUT は Azure 内部の read-modify-write 競合でサブネットが消失する。
+  # (Activity Log: PutVirtualNetworkPeeringOperation が VNet をロックし、
+  #  先に完了したサブネット PUT の結果を上書きしてしまう)
   # use_hub_gateway=true の場合、ER Gateway 完成後でないとピアリング不可
-  depends_on = [azurerm_virtual_network_gateway.er]
+  depends_on = [
+    azapi_resource.vending_subnets,
+    azurerm_virtual_network_gateway.er,
+  ]
 }
 
 # =============================================================================
@@ -464,6 +471,10 @@ resource "azapi_resource" "vending_hub_to_spoke" {
     interval_seconds     = 30
     max_interval_seconds = 300
   }
+
+  # Spoke ピアリングの完了後に Hub ピアリングを作成する。
+  # 両方同時に実行すると Hub 側 VNet でも同様の競合が発生し得る。
+  depends_on = [azapi_resource.vending_spoke_to_hub]
 }
 
 # =============================================================================

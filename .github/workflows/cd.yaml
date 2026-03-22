@@ -59,6 +59,15 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      # ── 一回限りの State クリーンアップ ──────────────────────────────
+      # サブネットとピアリングの並列作成による Azure VNet 競合で
+      # snet-app が Azure 上から消失したが State には残っている。
+      # State からゴーストエントリを除去し、次の plan で再作成させる。
+      # TODO: 次回 apply 成功後にこのステップを削除すること。
+      - name: State Cleanup (one-time)
+        run: |
+          terraform state rm 'azapi_resource.vending_subnets["test-subscription/snet-app"]' 2>/dev/null || true
+
       - name: Terraform Plan
         id: plan
         run: |
