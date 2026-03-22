@@ -143,29 +143,45 @@ jobs:
       - name: Terraform Apply
         run: terraform apply -auto-approve -input=false -lock-timeout=60m tfplan
 
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Policy Remediation
         run: |
-          set +e
           # DINE/Modify ポリシーは新規リソースには自動適用されるが、
           # 既存リソースには修復タスクが必要。
           # identity を持つ割り当て = DINE/Modify を抽出し修復タスクを作成する。
 
-          ROOT_MG=$(grep -oP 'root_id\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "")
+          ROOT_MG=$(grep -oP 'root_id\s*=\s*"\K[^"]+' terraform.tfvars || true)
           if [[ -z "$ROOT_MG" ]]; then
-            echo "Could not determine root_id — skipping remediation"
+            echo "::error::Could not determine root_id from terraform.tfvars — skipping remediation"
             exit 0
           fi
 
           echo "::notice::Creating remediation tasks for DINE/Modify policies (root MG: $ROOT_MG)"
 
           # 全管理グループ配下の DINE 割り当てを取得（identity 付き = DINE/Modify）
+          # --disable-scope-strict-match: 子管理グループ配下の割り当ても含める
           ASSIGNMENTS=$(az policy assignment list \
             --scope "/providers/Microsoft.Management/managementGroups/$ROOT_MG" \
+            --disable-scope-strict-match \
             --query "[?identity.type].{name:name, id:id, policyDefinitionId:policyDefinitionId, scope:scope}" \
-            -o json 2>/dev/null || echo "[]")
+            -o json)
 
           COUNT=$(echo "$ASSIGNMENTS" | jq 'length')
           echo "  Found $COUNT DINE/Modify assignments"
+
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "::notice::No DINE/Modify assignments found — nothing to remediate"
+            exit 0
+          fi
+
+          CREATED=0
+          FAILED=0
 
           echo "$ASSIGNMENTS" | jq -c '.[]' | while IFS= read -r ITEM; do
             NAME=$(echo "$ITEM" | jq -r '.name')
@@ -182,37 +198,51 @@ jobs:
                 --name "$SET_NAME" \
                 --management-group "$ROOT_MG" \
                 --query "policyDefinitions[].policyDefinitionReferenceId" \
-                -o tsv 2>/dev/null || true)
+                -o tsv 2>&1) || {
+                echo "  ⚠ $NAME: could not list initiative members — skipping"
+                echo "    Error: $REFS"
+                continue
+              }
 
               if [[ -z "$REFS" ]]; then
-                echo "  ⚠ $NAME: could not list initiative members — skipping"
+                echo "  ⚠ $NAME: initiative has no member references — skipping"
                 continue
               fi
 
               REF_COUNT=$(echo "$REFS" | wc -l)
               echo "  $NAME (initiative, $REF_COUNT members)"
               echo "$REFS" | while IFS= read -r REF; do
-                az policy remediation create \
+                if az policy remediation create \
                   --name "rem-${NAME}-${REF}-${TS}" \
                   --management-group "$MG_NAME" \
                   --policy-assignment "$ID" \
                   --definition-reference-id "$REF" \
                   --resource-discovery-mode ReEvaluateCompliance \
-                  -o none --no-wait 2>/dev/null || true
+                  -o none --no-wait 2>&1; then
+                  CREATED=$((CREATED + 1))
+                else
+                  echo "    ⚠ Failed to create remediation for $REF"
+                  FAILED=$((FAILED + 1))
+                fi
               done
             else
               # 単一ポリシー: 直接修復
               echo "  $NAME (single policy)"
-              az policy remediation create \
+              if az policy remediation create \
                 --name "rem-${NAME}-${TS}" \
                 --management-group "$MG_NAME" \
                 --policy-assignment "$ID" \
                 --resource-discovery-mode ReEvaluateCompliance \
-                -o none --no-wait 2>/dev/null || true
+                -o none --no-wait 2>&1; then
+                CREATED=$((CREATED + 1))
+              else
+                echo "    ⚠ Failed to create remediation for $NAME"
+                FAILED=$((FAILED + 1))
+              fi
             fi
           done
 
-          echo "::notice::Remediation tasks created (running asynchronously)"
+          echo "::notice::Remediation complete — created: $CREATED, failed: $FAILED"
 
   # ===========================================================================
   # Destroy: Plan -destroy → 承認 → Destroy

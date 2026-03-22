@@ -88,6 +88,14 @@ locals {
             }
             value = { durationMs = 86400000 }
           },
+          {
+            id                 = "selected-tab"
+            version            = "KqlParameterItem/1.0"
+            name               = "selectedTab"
+            type               = 1
+            isHiddenWhenLocked = true
+            value              = "overview"
+          },
         ]
         style = "pills"
       }
@@ -105,7 +113,7 @@ locals {
         version = "LinkItem/1.0"
         style   = "tabs"
         links = [
-          { id = "tab-overview", cellValue = "overview", linkTarget = "parameter", linkLabel = "概要", subTarget = "selectedTab", style = "link" },
+          { id = "tab-overview", cellValue = "overview", linkTarget = "parameter", linkLabel = "概要", subTarget = "selectedTab", style = "link", isDefault = true },
           { id = "tab-security", cellValue = "security", linkTarget = "parameter", linkLabel = "セキュリティ", subTarget = "selectedTab", style = "link" },
           { id = "tab-network", cellValue = "network", linkTarget = "parameter", linkLabel = "ネットワーク", subTarget = "selectedTab", style = "link" },
           { id = "tab-compute", cellValue = "compute", linkTarget = "parameter", linkLabel = "コンピュート", subTarget = "selectedTab", style = "link" },
