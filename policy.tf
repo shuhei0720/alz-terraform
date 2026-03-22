@@ -178,6 +178,25 @@ data "alz_architecture" "this" {
       value = var.primary_location
     })
 
+    # =========================================================================
+    # ALZ: Service Health アラート
+    # =========================================================================
+    resource_group_name_service_health_alerts = jsonencode({
+      value = "rg-service-health-${var.primary_location}"
+    })
+
+    svc_health_action_group_resources = jsonencode({
+      value = {
+        actionGroupEmail    = var.amba_alert_email
+        webhookServiceUri   = []
+        logicappResourceId  = ""
+        logicappCallbackUrl = ""
+        eventHubResourceId  = []
+        functionResourceId  = ""
+        functionTriggerUrl  = ""
+      }
+    })
+
     # Defender for Cloud プラン有効化（全プラン DeployIfNotExists）
     mdfc_enable_servers                           = jsonencode({ value = "DeployIfNotExists" })
     mdfc_enable_servers_vulnerability_assessments = jsonencode({ value = "DeployIfNotExists" })
