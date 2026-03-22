@@ -243,7 +243,7 @@ jobs:
                   --management-group "$MG_NAME" \
                   --policy-assignment "$ID" \
                   --definition-reference-id "$REF" \
-                  --resource-discovery-mode ReEvaluateCompliance \
+                  --resource-discovery-mode ExistingNonCompliant \
                   -o none 2>&1; then
                   CREATED=$((CREATED + 1))
                 else
@@ -258,7 +258,7 @@ jobs:
                 --name "rem-${NAME}-${TS}" \
                 --management-group "$MG_NAME" \
                 --policy-assignment "$ID" \
-                --resource-discovery-mode ReEvaluateCompliance \
+                --resource-discovery-mode ExistingNonCompliant \
                 -o none 2>&1; then
                 CREATED=$((CREATED + 1))
               else
