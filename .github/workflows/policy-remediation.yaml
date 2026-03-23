@@ -1,0 +1,126 @@
+name: Policy Remediation
+
+on:
+  # 手動実行のみ
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  remediation:
+    name: Policy Remediation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Azure Login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create Remediation Tasks
+        run: |
+          # DINE/Modify ポリシーは新規リソースには自動適用されるが、
+          # 既存リソースには修復タスクが必要。
+          # identity を持つ割り当て = DINE/Modify を抽出し修復タスクを作成する。
+
+          ROOT_MG=$(grep -oP 'root_id\s*=\s*"\K[^"]+' terraform.tfvars || true)
+          if [[ -z "$ROOT_MG" ]]; then
+            echo "::error::Could not determine root_id from terraform.tfvars — skipping remediation"
+            exit 0
+          fi
+
+          echo "::notice::Creating remediation tasks for DINE/Modify policies (root MG: $ROOT_MG)"
+
+          # 管理グループ階層を取得し、各スコープの DINE 割り当てを収集
+          MG_LIST=$(az account management-group show \
+            --name "$ROOT_MG" --expand --recurse -o json \
+            | jq -r 'recurse(.children[]?) | .name')
+
+          ASSIGNMENTS="[]"
+          for MG in $MG_LIST; do
+            echo "  Scanning MG: $MG"
+            MG_ASSIGNMENTS=$(az policy assignment list \
+              --scope "/providers/Microsoft.Management/managementGroups/$MG" \
+              --query "[?identity.type].{name:name, id:id, policyDefinitionId:policyDefinitionId, scope:scope}" \
+              -o json 2>/dev/null || echo "[]")
+            ASSIGNMENTS=$(echo "$ASSIGNMENTS" "$MG_ASSIGNMENTS" | jq -s 'add | unique_by(.id)')
+          done
+
+          COUNT=$(echo "$ASSIGNMENTS" | jq 'length')
+          echo "  Found $COUNT DINE/Modify assignments"
+
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "::notice::No DINE/Modify assignments found — nothing to remediate"
+            exit 0
+          fi
+
+          CREATED=0
+          FAILED=0
+
+          while IFS= read -r ITEM; do
+            NAME=$(echo "$ITEM" | jq -r '.name')
+            ID=$(echo "$ITEM" | jq -r '.id')
+            POLICY_DEF=$(echo "$ITEM" | jq -r '.policyDefinitionId')
+            SCOPE=$(echo "$ITEM" | jq -r '.scope')
+            MG_NAME=$(echo "$SCOPE" | grep -oP 'managementGroups/\K[^/]+' || echo "$ROOT_MG")
+            TS=$(date +%Y%m%d%H%M)
+
+            if [[ "$POLICY_DEF" == */policySetDefinitions/* ]]; then
+              # イニシアティブ: メンバーポリシーごとに修復タスクを作成
+              SET_NAME=$(basename "$POLICY_DEF")
+              REFS=$(az policy set-definition show \
+                --name "$SET_NAME" \
+                --management-group "$ROOT_MG" \
+                --query "policyDefinitions[].policyDefinitionReferenceId" \
+                -o tsv 2>&1) || {
+                echo "  ⚠ $NAME: could not list initiative members — skipping"
+                echo "    Error: $REFS"
+                continue
+              }
+
+              if [[ -z "$REFS" ]]; then
+                echo "  ⚠ $NAME: initiative has no member references — skipping"
+                continue
+              fi
+
+              REF_COUNT=$(echo "$REFS" | wc -l)
+              echo "  $NAME (initiative, $REF_COUNT members)"
+              while IFS= read -r REF; do
+                if az policy remediation create \
+                  --name "rem-${NAME}-${REF}-${TS}" \
+                  --management-group "$MG_NAME" \
+                  --policy-assignment "$ID" \
+                  --definition-reference-id "$REF" \
+                  --resource-discovery-mode ExistingNonCompliant \
+                  -o none 2>&1; then
+                  CREATED=$((CREATED + 1))
+                else
+                  echo "    ⚠ Failed to create remediation for $REF"
+                  FAILED=$((FAILED + 1))
+                fi
+              done <<< "$REFS"
+            else
+              # 単一ポリシー: 直接修復
+              echo "  $NAME (single policy)"
+              if az policy remediation create \
+                --name "rem-${NAME}-${TS}" \
+                --management-group "$MG_NAME" \
+                --policy-assignment "$ID" \
+                --resource-discovery-mode ExistingNonCompliant \
+                -o none 2>&1; then
+                CREATED=$((CREATED + 1))
+              else
+                echo "    ⚠ Failed to create remediation for $NAME"
+                FAILED=$((FAILED + 1))
+              fi
+            fi
+          done < <(echo "$ASSIGNMENTS" | jq -c '.[]')
+
+          echo "::notice::Remediation complete — created: $CREATED, failed: $FAILED"
