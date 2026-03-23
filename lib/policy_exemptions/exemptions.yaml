@@ -65,6 +65,26 @@ exemptions:
     description: >-
       Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。
 
+  - name: exempt-state-sa-mcsb
+    policy_assignment: Deploy-MCSB2-Monitoring
+    management_group_suffix: ""
+    scope: ${terraform_state_storage_account_id}
+    category: Waiver
+    display_name: "Terraform state SA — MCSB 免除"
+    description: >-
+      基盤 SA は CMK 未使用・SharedKey 利用・PrivateEndpoint 未構成など
+      MCSB ストレージポリシーに構造的に準拠できないためリソーススコープで免除。
+
+  - name: exempt-state-sa-asc
+    policy_assignment: Deploy-ASC-Monitoring
+    management_group_suffix: ""
+    scope: ${terraform_state_storage_account_id}
+    category: Waiver
+    display_name: "Terraform state SA — ASC 免除"
+    description: >-
+      Deploy-MCSB2-Monitoring と重複する ASC ストレージポリシーについても
+      同様にリソーススコープで免除。
+
   # --- LAW Archive SA ---
   - name: exempt-law-archive-sa-storage-gr
     policy_assignment: Enforce-GR-Storage0
@@ -83,6 +103,26 @@ exemptions:
     display_name: "LAW Archive SA — CMK 免除"
     description: >-
       Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。
+
+  - name: exempt-law-archive-sa-mcsb
+    policy_assignment: Deploy-MCSB2-Monitoring
+    management_group_suffix: ""
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — MCSB 免除"
+    description: >-
+      WORM 付き専用 SA は CMK 未使用・インフラ暗号化未設定など
+      MCSB ストレージポリシーに構造的に準拠できないためリソーススコープで免除。
+
+  - name: exempt-law-archive-sa-asc
+    policy_assignment: Deploy-ASC-Monitoring
+    management_group_suffix: ""
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — ASC 免除"
+    description: >-
+      Deploy-MCSB2-Monitoring と重複する ASC ストレージポリシーについても
+      同様にリソーススコープで免除。
 
   # =========================================================================
   # 2. ブートストラップリソース — IaC Compliance
