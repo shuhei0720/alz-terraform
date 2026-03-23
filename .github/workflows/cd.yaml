@@ -316,22 +316,26 @@ jobs:
               echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion != true and .versionId != null) | "\(.versionId)\t\(.name)"' | \
               while IFS=$'\t' read -r VID BNAME; do
                 az storage blob immutability-policy delete -c "$C" -b "$BNAME" \
-                  --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" 2>/dev/null || true
+                  --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" --output none 2>&1 || true
                 az storage blob delete -c "$C" -b "$BNAME" \
-                  --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" 2>/dev/null || true
+                  --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" --output none 2>&1 || true
               done
             fi
 
-            # --- Pass 2: current (root) versions → 保持期間を30秒に短縮 → 待機 → 削除 ---
+            # --- Pass 2: current (root) versions ---
+            # immutability-policy delete はルート Blob に使えない (OperationNotAllowedOnRootBlob)
+            # immutability-policy set --version-id でバージョン固有のポリシーを短縮→期限切れ後に削除
+            # blob delete はルート Blob なので --version-id を付けない
             CUR_COUNT=$(echo "$BLOBS" | jq '[.[] | select(.isCurrentVersion == true)] | length')
             if [[ "$CUR_COUNT" -gt 0 ]]; then
               EXPIRY=$(date -u -d "+30 seconds" '+%Y-%m-%dT%H:%M:%SZ')
               echo "    Shortening immutability on $CUR_COUNT root blobs (expires $EXPIRY)..."
-              echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | .name' | \
-              while IFS= read -r BNAME; do
+              echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | "\(.versionId)\t\(.name)"' | \
+              while IFS=$'\t' read -r VID BNAME; do
                 az storage blob immutability-policy set -c "$C" -b "$BNAME" \
                   --account-name "$SA_NAME" --account-key "$KEY" \
-                  --expiry-time "$EXPIRY" --policy-mode Unlocked 2>/dev/null || true
+                  --version-id "$VID" \
+                  --expiry-time "$EXPIRY" --policy-mode Unlocked --output none 2>&1 || true
               done
 
               echo "    Waiting 35s for immutability to expire..."
@@ -341,11 +345,14 @@ jobs:
               echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | .name' | \
               while IFS= read -r BNAME; do
                 az storage blob delete -c "$C" -b "$BNAME" \
-                  --account-name "$SA_NAME" --account-key "$KEY" 2>/dev/null || true
+                  --account-name "$SA_NAME" --account-key "$KEY" --output none 2>&1 || true
               done
             fi
 
-            echo "    Container $C: $TOTAL blobs processed"
+            # 残留確認
+            REMAINING=$(az storage blob list -c "$C" --account-name "$SA_NAME" \
+              --account-key "$KEY" --include v --num-results '*' --query "length(@)" -o tsv 2>/dev/null || echo "?")
+            echo "    Container $C: $TOTAL processed, $REMAINING remaining"
           done
 
           # 5. バージョニング無効化
