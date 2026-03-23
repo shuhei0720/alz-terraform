@@ -36,7 +36,7 @@ provider "azapi" {}
 #
 # ALZ ライブラリのデフォルトでは全ガードレールが enforcementMode=DoNotEnforce
 # （段階的有効化の推奨設計）。本リポジトリでは Default（強制）に切り替え、
-# 免除が必要なリソースは exemptions/ YAML で個別管理する。
+# 免除が必要なリソースは lib/policy_exemptions/ YAML で個別管理する。
 
 locals {
   guardrail_enforcement_overrides = merge(
@@ -252,7 +252,7 @@ data "alz_architecture" "this" {
   # "Disabled" のため、ここで DeployIfNotExists にオーバーライドします。
   #
   # ガードレール・CMK は DoNotEnforce → Default（強制）に切り替え。
-  # 免除が必要なリソースは exemptions/ YAML で個別管理する。
+  # 免除が必要なリソースは lib/policy_exemptions/ YAML で個別管理する。
   policy_assignments_to_modify = {
     # Root: MDFC 全プラン有効化
     (var.root_id) = {
