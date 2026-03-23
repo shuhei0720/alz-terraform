@@ -14,6 +14,7 @@
 #       category: Waiver | Mitigated
 #       display_name: <表示名>
 #       description: <理由>
+#       policy_definition_reference_ids: [省略可] イニシアティブ内の特定ポリシーのみ免除
 #
 # 免除の追加: lib/policy_exemptions/ に YAML を追加するだけ。
 # =============================================================================
@@ -54,12 +55,13 @@ resource "azurerm_resource_policy_exemption" "managed" {
 
   provider = azurerm.management
 
-  name                 = each.key
-  resource_id          = each.value.resolved_scope
-  policy_assignment_id = azapi_resource.alz_policy_assignments["${var.root_id}-${each.value.management_group_suffix}/${each.value.policy_assignment}"].id
-  exemption_category   = each.value.category
-  display_name         = each.value.display_name
-  description          = each.value.description
+  name                            = each.key
+  resource_id                     = each.value.resolved_scope
+  policy_assignment_id            = azapi_resource.alz_policy_assignments["${var.root_id}-${each.value.management_group_suffix}/${each.value.policy_assignment}"].id
+  exemption_category              = each.value.category
+  display_name                    = each.value.display_name
+  description                     = each.value.description
+  policy_definition_reference_ids = try(each.value.policy_definition_reference_ids, null)
 
   depends_on = [azapi_resource.alz_policy_assignments]
 }

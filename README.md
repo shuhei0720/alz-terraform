@@ -858,35 +858,43 @@ lib/policy_exemptions/
 
 ##### YAML 記入例
 
-以下は Terraform state ストレージアカウントを Storage ガードレールと CMK 強制から免除する例です:
+**例 1: イニシアティブ全体を免除**（state SA を Storage ガードレール全体から免除）
 
 ```yaml
 # lib/policy_exemptions/terraform-state-sa.alz_policy_exemption.yaml
 
 exemptions:
-  # Storage ガードレール: SharedKey Deny、パブリックアクセス Modify 等が
-  # state backend 運用と競合するため免除
   - name: exempt-state-sa-storage-gr
-    policy_assignment: Enforce-GR-Storage0
-    management_group_suffix: platform
-    scope: ${terraform_state_storage_account_id}
+    policy_assignment: Enforce-GR-Storage0     # イニシアティブの割り当て名
+    management_group_suffix: platform          # 割り当て元 MG（${root_id}-platform）
+    scope: ${terraform_state_storage_account_id}  # 免除スコープ（リソース ID）
     category: Waiver
     display_name: "Terraform state SA — Storage ガードレール免除"
     description: >-
       State backend は GitHub Actions OIDC 経由で管理。
       SharedKey 制限・パブリックアクセス制御は Azure Portal で個別設定済み。
+```
 
-  # CMK 強制: state SA は Microsoft-managed keys で運用
-  - name: exempt-state-sa-cmk
-    policy_assignment: Enforce-Encrypt-CMK0
+**例 2: イニシアティブ内の特定ポリシーだけ免除**（SharedKey 禁止とパブリックエンドポイント制御のみ）
+
+```yaml
+exemptions:
+  - name: exempt-state-sa-storage-partial
+    policy_assignment: Enforce-GR-Storage0
     management_group_suffix: platform
     scope: ${terraform_state_storage_account_id}
     category: Waiver
-    display_name: "Terraform state SA — CMK 免除"
-    description: >-
-      State backend は Microsoft-managed keys で運用。
-      CMK 導入はコスト・運用複雑性のトレードオフにより見送り。
+    display_name: "Terraform state SA — SharedKey/PublicEndpoint のみ免除"
+    description: "SharedKey とパブリックエンドポイント制御のみ免除。他のポリシーは適用"
+    policy_definition_reference_ids:           # イニシアティブ内の特定ポリシーだけ免除
+      - Deny-Storage-Shared-Key                # SharedKey Deny
+      - Modify-Storage-Account-PublicEndpoint   # パブリックエンドポイント Modify
+      - Modify-Blob-Storage-Account-PublicEndpoint
 ```
+
+> **ヒント**: `policy_definition_reference_ids` を省略するとイニシアティブ全体が免除されます。  
+> 特定ポリシーのみ免除したい場合は `policyDefinitionReferenceId` を指定してください。  
+> 各イニシアティブの参照 ID は YAML ファイル内のコメントに一覧を記載しています。
 
 ##### フィールドリファレンス
 
@@ -899,6 +907,7 @@ exemptions:
 | `category` | ✅ | `Waiver`（恒久的免除）または `Mitigated`（代替措置により免除） |
 | `display_name` | ✅ | Azure Portal に表示される免除の名前 |
 | `description` | ✅ | 免除理由の説明（監査・レビュー用） |
+| `policy_definition_reference_ids` | — | イニシアティブ内の特定ポリシーだけ免除する場合に指定（省略 = 全体免除） |
 
 ##### 動作の仕組み
 
@@ -906,13 +915,15 @@ exemptions:
 2. `scope` 内の `${変数名}` を `variables.tf` の変数値で解決
 3. 変数値が空文字の場合、その免除はスキップ（リソース未作成）
 4. `azurerm_resource_policy_exemption` で Azure にデプロイ
+5. `policy_definition_reference_ids` が指定されていれば、イニシアティブ内の特定ポリシーのみ免除
 
 ##### 免除を追加する手順
 
 1. `lib/policy_exemptions/` に新しい YAML ファイルを作成（または既存ファイルに追記）
 2. スコープにリソース ID を直接記入、または `${変数名}` で変数参照
-3. 変数参照の場合は `variables.tf` に変数を追加し、`terraform.tfvars` で値を設定
-4. `terraform plan` で免除リソースの作成を確認
+3. イニシアティブ内の特定ポリシーだけ免除する場合は `policy_definition_reference_ids` を指定
+4. 変数参照の場合は `variables.tf` に変数を追加し、`terraform.tfvars` で値を設定
+5. `terraform plan` で免除リソースの作成を確認
 
 ---
 
