@@ -538,3 +538,24 @@ resource "azapi_resource" "alz_role_definitions" {
 
   depends_on = [time_sleep.wait_for_root_mg]
 }
+
+# =============================================================================
+# AMBA 前提: Microsoft.AlertsManagement リソースプロバイダー登録
+# =============================================================================
+#
+# AMBA DINE ポリシー (Deploy-AMBA-Notification) が AlertProcessing Rule を
+# デプロイするには、対象サブスクリプションで Microsoft.AlertsManagement RP が
+# 登録されている必要がある。全プロバイダーで resource_provider_registrations =
+# "none" のため自動登録されないので、明示的に登録する。
+#
+# register API はべき等（登録済みでも安全にコール可能）。
+# =============================================================================
+
+resource "azapi_resource_action" "register_alerts_management" {
+  for_each = var.subscription_ids
+
+  type        = "Microsoft.Resources/providers@2021-04-01"
+  resource_id = "/subscriptions/${each.value}/providers/Microsoft.AlertsManagement"
+  action      = "register"
+  method      = "POST"
+}
