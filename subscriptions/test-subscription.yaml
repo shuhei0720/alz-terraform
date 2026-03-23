@@ -55,8 +55,16 @@ firewall_rules:
 
 # ポリシー免除（このサブスクリプション固有）
 # scope 内の ${subscription_id} はこのサブスクリプション ID に自動変換されます
-#
-# policy_exemptions:
+
+policy_exemptions:
+  - name: "exempt-test-sub-keyvault-gr"
+    policy_assignment: "Enforce-GR-KeyVault0"
+    scope: "/subscriptions/${subscription_id}"
+    category: "Mitigated"
+    display_name: "テスト環境 — KeyVault ガードレール免除"
+    description: "テスト環境のため KeyVault ガードレールを一時免除"
+
+# 以下はコメント例（必要に応じて有効化）
 #   - name: "exempt-test-sub-storage-gr"
 #     policy_assignment: "Enforce-GR-Storage0"
 #     scope: "/subscriptions/${subscription_id}/resourceGroups/rg-test-app/providers/Microsoft.Storage/storageAccounts/mystorageaccount"
