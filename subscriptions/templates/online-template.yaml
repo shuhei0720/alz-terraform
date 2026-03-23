@@ -80,3 +80,18 @@ firewall_rules:
         - type: "Https"
           port: 443
       destination_fqdns: ["<許可する FQDN>"]
+
+# ポリシー免除（このサブスクリプション固有）
+# 不要であれば policy_exemptions セクションを丸ごと削除してください
+# scope 内の ${subscription_id} はこのサブスクリプション ID に自動変換されます
+# management_group_suffix は省略可（management_group_id から自動推定）
+#
+# policy_exemptions:
+#   - name: "exempt-<システム名>-<ポリシー名>"
+#     policy_assignment: "<ポリシー割り当て名（例: Enforce-GR-Storage0）>"
+#     scope: "/subscriptions/${subscription_id}/resourceGroups/<RG名>/providers/<リソースタイプ>/<リソース名>"
+#     category: "Waiver"              # Waiver（免除）または Mitigated（軽減済み）
+#     display_name: "<表示名>"
+#     description: "<免除理由>"
+#     # policy_definition_reference_ids:  # イニシアティブ内の特定ポリシーだけ免除する場合
+#     #   - "<policyDefinitionReferenceId>"

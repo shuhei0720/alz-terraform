@@ -52,3 +52,14 @@ firewall_rules:
         - type: "Https"
           port: 443
       destination_fqdns: ["api.example.com"]
+
+# ポリシー免除（このサブスクリプション固有）
+# scope 内の ${subscription_id} はこのサブスクリプション ID に自動変換されます
+#
+# policy_exemptions:
+#   - name: "exempt-test-sub-storage-gr"
+#     policy_assignment: "Enforce-GR-Storage0"
+#     scope: "/subscriptions/${subscription_id}/resourceGroups/rg-test-app/providers/Microsoft.Storage/storageAccounts/mystorageaccount"
+#     category: "Waiver"
+#     display_name: "Test SA — Storage ガードレール免除"
+#     description: "テスト用 SA のため免除"
