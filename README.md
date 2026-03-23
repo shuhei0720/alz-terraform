@@ -74,9 +74,9 @@ alz-terraform/
 │
 │  ── Terraform 基盤 ──────────────────────────────────────────
 ├── terraform.tf                  # プロバイダー定義・バージョン制約
-├── variables.tf                  # 全入力変数（14 変数）
+├── variables.tf                  # 全入力変数（19 変数）
 ├── locals.tf                     # 計算値（Hub キー、DNS×VNet 直積）
-├── outputs.tf                    # 出力値（12 個）
+├── outputs.tf                    # 出力値（16 個）
 ├── terraform.tfvars              # 環境固有の設定値
 ├── terraform.tfvars.example      # 上記の記入例
 │
@@ -108,7 +108,7 @@ alz-terraform/
 │   ├── policy_assignments/                # カスタム割り当て
 │   │   └── Assign-IaC-Compliance.*.json
 │   └── policy_exemptions/                 # ポリシー免除（スコープ指定）
-│       └── terraform-state-sa.*.yaml      # State SA の Storage/CMK 免除
+│       └── exemptions.yaml                # グローバルポリシー免除
 │
 │  ── サブスクリプション定義 ──────────────────────────────────
 ├── subscriptions/
@@ -867,13 +867,13 @@ Azure Policy の免除は**スコープ**を指定して、そのスコープ配
 
 ```
 lib/policy_exemptions/
-  terraform-state-sa.alz_policy_exemption.yaml   # Terraform state SA の免除
+  exemptions.yaml                                 # グローバルポリシー免除
 ```
 
 **例 1: イニシアティブ全体を免除**（state SA を Storage ガードレール全体から免除）
 
 ```yaml
-# lib/policy_exemptions/terraform-state-sa.alz_policy_exemption.yaml
+# lib/policy_exemptions/exemptions.yaml
 
 exemptions:
   - name: exempt-state-sa-storage-gr
@@ -1635,7 +1635,7 @@ policy_assignments_to_remove:
 
 ## GitHub Actions CI/CD
 
-本リポジトリでは 4 つの GitHub Actions ワークフローでインフラのライフサイクルを管理します。
+本リポジトリでは 7 つの GitHub Actions ワークフローでインフラのライフサイクルを管理します。
 
 | ワークフロー | ファイル | トリガー | 概要 |
 |:---|:---|:---|:---|
@@ -1644,6 +1644,8 @@ policy_assignments_to_remove:
 | **Drift Detection** | `drift-detection.yaml` | 毎日 09:00 JST / 手動 | state と実環境の差分を検知し Issue 管理 |
 | **Dependency Check** | `dependency-check.yaml` | PR（lock/provider 変更時）/ 手動 | lock file 整合性 + provider バージョン検証 |
 | **Library Update Check** | `library-update-check.yaml` | 毎週月曜 / 手動 | ALZ/AMBA ポリシーライブラリの新バージョンを検知し Issue 作成 |
+| **Policy Remediation** | `policy-remediation.yaml` | 手動のみ | DINE/Modify ポリシーの修復タスク作成（既存リソース対応） |
+| **Provider Major Check** | `provider-major-check.yaml` | 毎週月曜 / 手動 | Terraform プロバイダーのメジャーバージョン更新検知 → Issue 作成 |
 
 ### デプロイフロー
 
@@ -2090,6 +2092,28 @@ Dependabot → バージョン更新 PR 自動作成
 | 対象 | `platform/alz`, `platform/amba` |
 | 通知方法 | GitHub Issue（`library-update` ラベル） |
 | 更新手順 | Issue に記載（`ref` を更新 → init → plan → PR） |
+
+### Policy Remediation ワークフロー
+
+DINE（DeployIfNotExists）/ Modify ポリシーは**新規リソースには自動適用**されますが、**既存リソースには修復タスクが必要**です。
+このワークフローは手動実行で、全管理グループのDINE/Modify割り当てに対して修復タスクを一括作成します。
+
+```
+手動実行（workflow_dispatch）
+  → 管理グループ階層を再帰スキャン
+  → identity を持つ割り当て（= DINE/Modify）を収集
+  → イニシアティブ: メンバーポリシーごとに修復タスクを作成
+  → 単一ポリシー: 直接修復タスクを作成
+```
+
+| 設定 | 値 |
+|:---|:---|
+| トリガー | 手動のみ（`workflow_dispatch`） |
+| 対象 | 全管理グループの DINE/Modify 割り当て |
+| 修復モード | `ExistingNonCompliant`（既存の非準拠リソースのみ） |
+
+> **使用タイミング**: ポリシーライブラリの更新後や、新しい DINE ポリシーを追加した後に実行してください。
+> 新規リソースは自動的にポリシーが適用されるため、日常的な実行は不要です。
 
 ---
 

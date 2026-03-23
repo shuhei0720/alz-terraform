@@ -1,0 +1,167 @@
+# =============================================================================
+# ポリシー免除定義
+# =============================================================================
+#
+# 全てのグローバル免除をこのファイルで一元管理する。
+# サブスクリプション固有の免除は subscriptions/<name>.yaml に記述。
+# Hub VNet の免除のみ動的 (Terraform の for_each) のため HCL で管理。
+#
+# スコープ変数 (${var_name}) は policy-exemptions.tf の
+# exemption_scope_vars で実値に解決される。
+#
+# 免除のスコープ指針:
+#   リソース / RG スコープ — 影響範囲が限定的で安全
+#   サブスクリプション / MG スコープ — 将来のリソースにも適用されるため原則禁止
+#   MG スコープ + reference ID 限定 — 構造的に回避不可能な項目のみ許容
+#
+# Audit ポリシーの非準拠は免除せず可視化する方針。
+# DINE 修復待ちは免除ではなく Policy Remediation で対応する。
+#
+# =============================================================================
+
+exemptions:
+
+  # =========================================================================
+  # 1. ストレージアカウント — ガードレール + CMK
+  # =========================================================================
+  #
+  # Terraform state SA と LAW Archive SA はどちらも基盤インフラ SA で、
+  # ガードレール・CMK 強制の一部/全部を免除する必要がある。
+  # スコープはリソース ID に限定されており、将来のリソースに影響しない。
+  #
+  # Enforce-GR-Storage0 の policyDefinitionReferenceId 一覧:
+  #   Deny-Storage-CopyScope, Deny-Storage-ServicesEncryption,
+  #   Deny-Storage-LocalUser, Deny-Storage-SFTP,
+  #   Deny-Storage-NetworkAclsBypass, Deny-Storage-ResourceAccessRulesTenantId,
+  #   Deny-Storage-ResourceAccessRulesResourceId,
+  #   Deny-Storage-NetworkAclsVirtualNetworkRules,
+  #   Deny-Storage-ContainerDeleteRetentionPolicy, Deny-Storage-CorsRules,
+  #   Deny-Storage-Account-Encryption, Deny-Storage-Cross-Tenant,
+  #   Deny-Storage-Shared-Key, Deny-Storage-Infra-Encryption,
+  #   Deny-Storage-Classic, Dine-Storage-Threat-Protection,
+  #   Deny-Storage-Restrict-NetworkRules, Deny-Storage-NetworkRules,
+  #   Deny-Storage-Account-Keys-Expire,
+  #   Modify-Storage-FileSync-PublicEndpoint,
+  #   Modify-Blob-Storage-Account-PublicEndpoint,
+  #   Modify-Storage-Account-PublicEndpoint
+
+  # --- Terraform state SA ---
+  - name: exempt-state-sa-storage-gr
+    policy_assignment: Enforce-GR-Storage0
+    management_group_suffix: platform
+    scope: ${terraform_state_storage_account_id}
+    category: Waiver
+    display_name: "Terraform state SA — Storage ガードレール免除"
+    description: >-
+      State backend は GitHub Actions OIDC 経由で管理。
+      SharedKey 制限・パブリックアクセス制御は Azure Portal で個別設定済み。
+
+  - name: exempt-state-sa-cmk
+    policy_assignment: Enforce-Encrypt-CMK0
+    management_group_suffix: platform
+    scope: ${terraform_state_storage_account_id}
+    category: Waiver
+    display_name: "Terraform state SA — CMK 免除"
+    description: >-
+      Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。
+
+  # --- LAW Archive SA ---
+  - name: exempt-law-archive-sa-storage-gr
+    policy_assignment: Enforce-GR-Storage0
+    management_group_suffix: platform
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — Storage ガードレール免除"
+    description: >-
+      不変性ポリシー (WORM) 付き専用 SA。インフラ暗号化等の作成後変更不可設定があるため免除。
+
+  - name: exempt-law-archive-sa-cmk
+    policy_assignment: Enforce-Encrypt-CMK0
+    management_group_suffix: platform
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — CMK 免除"
+    description: >-
+      Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。
+
+  # =========================================================================
+  # 2. ブートストラップリソース — IaC Compliance
+  # =========================================================================
+
+  - name: exempt-terraform-bootstrap-iac
+    policy_assignment: Assign-IaC-Compliance
+    management_group_suffix: platform
+    scope: ${terraform_state_rg_id}
+    category: Waiver
+    display_name: "rg-terraform-state — IaC Compliance 免除"
+    description: >-
+      Terraform state + GitHub Actions OIDC UAMI はブートストラップリソース
+      （鶏と卵問題）。Terraform 管理外だが正当なインフラ前提リソース。
+
+  # =========================================================================
+  # 3. MCSB / ASC ベンチマーク — 構造的に回避不可能な項目のみ免除
+  # =========================================================================
+  #
+  # 免除対象は Azure Policy では対処不可能な以下の 3 カテゴリに限定:
+  #   カスタム RBAC ロール — ALZ 設計に必要なロール定義（構造的）
+  #   Defender for APIs   — 組織的コスト判断
+  #   Identity / Entra ID — Entra ID Access Reviews で別途管理（Azure Policy 管轄外）
+  #   DDoS Protection     — DDoS Protection Plan 未契約（組織的コスト判断）
+  #
+  # 以下は免除しない（将来のリソースで検出されるべき）:
+  #   Storage 関連        — 基盤 SA はリソーススコープで個別免除済み
+  #   NSG Flow Logs       — 将来の NSG に対して監査を有効にしておくべき
+  #   MI フェデレーション  — 将来の MI に対して監査を有効にしておくべき
+  #   LAW パブリックアクセス — 将来の LAW に対して監査を有効にしておくべき
+  #   Saved Queries CMK   — 将来の Saved Queries に対して監査を有効にしておくべき
+
+  - name: exempt-mcsb-audit-waivers
+    policy_assignment: Deploy-MCSB2-Monitoring
+    scope: ${root_management_group_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "MCSB Audit — 構造的に回避不可能な項目"
+    description: >-
+      ALZ 設計上のカスタム RBAC ロール、Entra ID 管理事項、組織的コスト判断項目を
+      reference ID 限定で免除。Storage・NSG 等は将来リソースの監査を維持するため免除しない。
+    policy_definition_reference_ids:
+      # カスタム RBAC ロール — ALZ 設計上の構造的要件
+      - userbacrulesmonitoring
+      # Defender for APIs — 組織的コスト判断
+      - enabledefenderforapis
+      # Identity / Entra ID — Azure Policy では対処不可、Entra ID Access Reviews で管理
+      - identitydesignatemorethanoneownermonitoring
+      - identitydesignatelessthanownersmonitoring
+      - identityremovedeprecatedaccountmonitoringnew
+      - identityremovedeprecatedaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithwritepermissionsmonitoringnew
+      - identityremoveexternalaccountwithreadpermissionsmonitoringnew
+      # DDoS Protection — 組織的コスト判断
+      - vnetenableddosprotectionmonitoring
+      - vnetsprotectedddos
+
+  - name: exempt-asc-audit-waivers
+    policy_assignment: Deploy-ASC-Monitoring
+    scope: ${root_management_group_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "ASC Audit — 構造的に回避不可能な項目"
+    description: >-
+      Deploy-MCSB2-Monitoring と重複する ASC 監視項目のうち、
+      構造的に回避不可能な項目のみ reference ID 限定で免除。
+    policy_definition_reference_ids:
+      # カスタム RBAC ロール
+      - userbacrulesmonitoring
+      # Defender for APIs
+      - enabledefenderforapis
+      # Identity / Entra ID
+      - identitydesignatemorethanoneownermonitoring
+      - identitydesignatelessthanownersmonitoring
+      - identityremovedeprecatedaccountmonitoringnew
+      - identityremovedeprecatedaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithwritepermissionsmonitoringnew
+      - identityremoveexternalaccountwithreadpermissionsmonitoringnew
+      # DDoS Protection
+      - vnetenableddosprotectionmonitoring
