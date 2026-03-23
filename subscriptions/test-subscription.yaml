@@ -58,7 +58,7 @@ firewall_rules:
 
 policy_exemptions:
   - name: "exempt-test-sub-keyvault-gr"
-    policy_assignment: "Enforce-GR-KeyVault0"
+    policy_assignment: "Enforce-GR-KeyVault"
     scope: "/subscriptions/${subscription_id}"
     category: "Mitigated"
     display_name: "テスト環境 — KeyVault ガードレール免除"
