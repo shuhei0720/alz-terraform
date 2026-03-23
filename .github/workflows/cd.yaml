@@ -315,7 +315,7 @@ jobs:
               echo "    Deleting $NC_COUNT non-current versions..."
               echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion != true and .versionId != null) | "\(.versionId)\t\(.name)"' | \
               while IFS=$'\t' read -r VID BNAME; do
-                az storage blob immutability-policy delete -c "$C" -b "$BNAME" \
+                az storage blob immutability-policy delete -c "$C" -n "$BNAME" \
                   --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" --output none 2>&1 || true
                 az storage blob delete -c "$C" -b "$BNAME" \
                   --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" --output none 2>&1 || true
@@ -332,7 +332,7 @@ jobs:
               echo "    Shortening immutability on $CUR_COUNT root blobs (expires $EXPIRY)..."
               echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | "\(.versionId)\t\(.name)"' | \
               while IFS=$'\t' read -r VID BNAME; do
-                az storage blob immutability-policy set -c "$C" -b "$BNAME" \
+                az storage blob immutability-policy set -c "$C" -n "$BNAME" \
                   --account-name "$SA_NAME" --account-key "$KEY" \
                   --version-id "$VID" \
                   --expiry-time "$EXPIRY" --policy-mode Unlocked --output none 2>&1 || true
