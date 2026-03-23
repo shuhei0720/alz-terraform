@@ -1,0 +1,27 @@
+# LAW Archive ストレージアカウントのポリシー免除
+#
+# LAW アーカイブ用 SA は不変性ポリシー (WORM) 付き専用 SA のため、
+# 作成後に変更できない設定が多い。ガードレールから免除する。
+
+exemptions:
+  # Storage ガードレール: イニシアティブ全体を免除
+  - name: exempt-law-archive-sa-storage-gr
+    policy_assignment: Enforce-GR-Storage0
+    management_group_suffix: platform
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — Storage ガードレール免除"
+    description: >-
+      LAW アーカイブは不変性ポリシー付き専用 SA。
+      インフラ暗号化等の作成後変更不可設定があるためガードレール全体を免除。
+
+  # CMK 強制: Microsoft-managed keys で運用
+  - name: exempt-law-archive-sa-cmk
+    policy_assignment: Enforce-Encrypt-CMK0
+    management_group_suffix: platform
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — CMK 免除"
+    description: >-
+      CMK はコスト・運用複雑性のトレードオフにより見送り。
+      Microsoft-managed keys で運用。

@@ -58,3 +58,14 @@ exemptions:
     description: >-
       State backend は Microsoft-managed keys で運用。
       CMK 導入はコスト・運用複雑性のトレードオフにより見送り。
+
+  # IaC Compliance: ブートストラップリソース免除
+  - name: exempt-terraform-bootstrap-iac
+    policy_assignment: Assign-IaC-Compliance
+    management_group_suffix: platform
+    scope: ${terraform_state_rg_id}
+    category: Waiver
+    display_name: "rg-terraform-state — IaC Compliance 免除"
+    description: >-
+      Terraform state backend と GitHub Actions OIDC の UAMI は
+      ブートストラップリソース（鶏と卵問題）。Terraform 管理外だが正当なインフラ前提リソース。
