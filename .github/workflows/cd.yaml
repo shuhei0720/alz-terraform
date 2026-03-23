@@ -233,9 +233,7 @@ jobs:
           set +e +o pipefail
           # WORM (バージョンレベル不変性) 有効な Storage Account は terraform destroy で削除不可
           # (AccountProtectedFromDeletion) のため、事前にクリーンアップする
-
-          # Azure Storage SDK インストール（バージョンレベル不変性の操作に必要）
-          pip install -q azure-storage-blob
+          # Python 不要 — az CLI のみで完結
 
           # SA 名・RG 名を特定（state → tfvars フォールバック）
           SA_ID=$(terraform state list 2>/dev/null | grep 'azurerm_storage_account.law_archive' || true)
@@ -252,7 +250,6 @@ jobs:
             exit 0
           fi
 
-          # az CLI 認証確認
           if ! az account show -o none 2>/dev/null; then
             echo "::error::az CLI is not authenticated — cannot perform pre-destroy cleanup"
             exit 1
@@ -280,62 +277,84 @@ jobs:
             sleep 15
           fi
 
-          # 2. パブリックアクセス有効化（データプレーン操作に必要）
+          # 2. パブリックアクセス有効化 + アカウントキー取得
           az storage account update -n "$SA_NAME" -g "$RG_NAME" \
             --public-network-access Enabled --output none
           sleep 10
-
-          # 3. アカウントキー取得
           KEY=$(az storage account keys list -n "$SA_NAME" -g "$RG_NAME" \
             --query "[0].value" -o tsv)
 
-          # 4. ソフトデリート・バージョニング無効化
+          # 3. ソフトデリート無効化（バージョニングは Blob 操作完了後に無効化）
           az storage account blob-service-properties update \
             --account-name "$SA_NAME" -g "$RG_NAME" \
             --enable-delete-retention false \
             --enable-container-delete-retention false \
-            --enable-versioning false \
             --output none 2>/dev/null || true
 
-          # 5. Azure Storage SDK でバージョンレベル不変性ポリシー削除 + Blob 全削除
-          #    自前の SharedKey REST 署名は Data Export の特殊パスで署名不一致が起こるため
-          #    SDK（内部で正確に署名）を使用する
+          # 4. Blob バージョンの不変性ポリシー解除 + 全削除（az CLI のみ）
+          #    root blob (current version) は immutability-policy delete が使えない
+          #    (OperationNotAllowedOnRootBlob) ため、set で保持期間を短縮→期限切れ後に削除
           CONTAINERS=$(az storage container list --account-name "$SA_NAME" \
             --account-key "$KEY" --query "[].name" -o tsv 2>/dev/null || echo "")
 
-          if [[ -n "$CONTAINERS" ]]; then
-            python3 - "$SA_NAME" "$KEY" "$CONTAINERS" << 'PYEOF'
-          import sys
-          from azure.storage.blob import BlobServiceClient
+          for C in $CONTAINERS; do
+            echo "  Processing container: $C"
 
-          acct, key, containers = sys.argv[1], sys.argv[2], sys.argv[3].split()
-          client = BlobServiceClient(f"https://{acct}.blob.core.windows.net", credential=key)
+            BLOBS=$(az storage blob list -c "$C" --account-name "$SA_NAME" \
+              --account-key "$KEY" --include v --num-results '*' -o json 2>/dev/null || echo "[]")
+            TOTAL=$(echo "$BLOBS" | jq length)
 
-          for cname in containers:
-              cc = client.get_container_client(cname)
-              cleaned = errors = 0
-              try:
-                  for blob in cc.list_blobs(include=['versions', 'deleted', 'snapshots']):
-                      vid = getattr(blob, 'version_id', None)
-                      try:
-                          bc = cc.get_blob_client(blob.name, version_id=vid)
-                          try:
-                              bc.delete_immutability_policy()
-                          except Exception:
-                              pass  # no policy or already deleted
-                          bc.delete_blob()
-                          cleaned += 1
-                      except Exception as e:
-                          errors += 1
-                          if errors <= 3:
-                              print(f"  WARN: {cname}/{blob.name} (v={vid}): {e}", flush=True)
-              except Exception as e:
-                  print(f"  ERROR listing {cname}: {e}", flush=True)
-              print(f"  Container {cname}: {cleaned} deleted, {errors} errors", flush=True)
-          PYEOF
-          fi
+            if [[ "$TOTAL" -eq 0 ]]; then
+              echo "    Empty — skipping"
+              continue
+            fi
 
-          # 6. コンテナ削除（管理プレーン — データプレーンでは不変性有効コンテナ削除不可）
+            # --- Pass 1: non-current versions → ポリシー削除 → バージョン削除 ---
+            NC_COUNT=$(echo "$BLOBS" | jq '[.[] | select(.isCurrentVersion != true and .versionId != null)] | length')
+            if [[ "$NC_COUNT" -gt 0 ]]; then
+              echo "    Deleting $NC_COUNT non-current versions..."
+              echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion != true and .versionId != null) | "\(.versionId)\t\(.name)"' | \
+              while IFS=$'\t' read -r VID BNAME; do
+                az storage blob immutability-policy delete -c "$C" -b "$BNAME" \
+                  --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" 2>/dev/null || true
+                az storage blob delete -c "$C" -b "$BNAME" \
+                  --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" 2>/dev/null || true
+              done
+            fi
+
+            # --- Pass 2: current (root) versions → 保持期間を30秒に短縮 → 待機 → 削除 ---
+            CUR_COUNT=$(echo "$BLOBS" | jq '[.[] | select(.isCurrentVersion == true)] | length')
+            if [[ "$CUR_COUNT" -gt 0 ]]; then
+              EXPIRY=$(date -u -d "+30 seconds" '+%Y-%m-%dT%H:%M:%SZ')
+              echo "    Shortening immutability on $CUR_COUNT root blobs (expires $EXPIRY)..."
+              echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | .name' | \
+              while IFS= read -r BNAME; do
+                az storage blob immutability-policy set -c "$C" -b "$BNAME" \
+                  --account-name "$SA_NAME" --account-key "$KEY" \
+                  --expiry-time "$EXPIRY" --policy-mode Unlocked 2>/dev/null || true
+              done
+
+              echo "    Waiting 35s for immutability to expire..."
+              sleep 35
+
+              echo "    Deleting $CUR_COUNT root blobs..."
+              echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | .name' | \
+              while IFS= read -r BNAME; do
+                az storage blob delete -c "$C" -b "$BNAME" \
+                  --account-name "$SA_NAME" --account-key "$KEY" 2>/dev/null || true
+              done
+            fi
+
+            echo "    Container $C: $TOTAL blobs processed"
+          done
+
+          # 5. バージョニング無効化
+          az storage account blob-service-properties update \
+            --account-name "$SA_NAME" -g "$RG_NAME" \
+            --enable-versioning false \
+            --output none 2>/dev/null || true
+
+          # 6. コンテナ削除（管理プレーン）
           for C in $CONTAINERS; do
             az storage container-rm delete \
               --storage-account "$SA_NAME" -g "$RG_NAME" -n "$C" --yes 2>&1 || true
