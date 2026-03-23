@@ -96,8 +96,91 @@ locals {
     if replace(e.scope, "$${subscription_id}", e._sub_id) != ""
   }
 
-  # --- 統合: グローバル + サブスクリプション免除 ---
-  policy_exemptions = merge(local._global_exemptions, local._subscription_exemptions)
+  # --- 3. インフラ構成に基づく動的免除 ---
+  # YAML では表現できない Terraform リソース ID ベースの免除
+  _terraform_state_rg_scope = (
+    var.terraform_state_storage_account_id != ""
+    ? join("/", slice(split("/", var.terraform_state_storage_account_id), 0, 5))
+    : ""
+  )
+
+  _infrastructure_exemptions = merge(
+    # Hub VNet: Network ガードレール免除（特殊サブネット）
+    # AzureFirewallSubnet / GatewaySubnet / AzureBastionSubnet / DNS Resolver は
+    # 設計上 NSG/UDR を付与できない or 非推奨
+    {
+      for hub_key in keys(var.hub_virtual_networks) :
+      "exempt-hub-${hub_key}-network-gr" => {
+        name                            = "exempt-hub-${hub_key}-network-gr"
+        policy_assignment               = "Enforce-GR-Network0"
+        management_group_suffix         = "platform"
+        resolved_scope                  = azurerm_virtual_network.hub[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Hub VNet (${hub_key}) — Network GR 免除"
+        description                     = "Hub の特殊サブネット(Firewall/Bastion/Gateway/DNS Resolver)は設計上 NSG/UDR を付与できないため免除"
+        policy_definition_reference_ids = ["deny-subnet-without-nsg", "deny-subnet-without-udr"]
+      }
+    },
+    # Hub VNet: Subnet Private (defaultOutboundAccess) 免除
+    # 特殊サブネットは専用のアウトバウンド経路を持つ (Firewall PIP / Gateway / Bastion PIP)
+    {
+      for hub_key in keys(var.hub_virtual_networks) :
+      "exempt-hub-${hub_key}-subnet-private" => {
+        name                            = "exempt-hub-${hub_key}-subnet-private"
+        policy_assignment               = "Enforce-Subnet-Private"
+        management_group_suffix         = "platform"
+        resolved_scope                  = azurerm_virtual_network.hub[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Hub VNet (${hub_key}) — Subnet Private 免除"
+        description                     = "Hub 特殊サブネットは専用のアウトバウンド経路を持つため defaultOutboundAccess 設定不要"
+        policy_definition_reference_ids = null
+      }
+    },
+    # LAW Archive SA: Storage ガードレール免除
+    # 不変性ポリシー付き専用 SA のため一部設定変更不可
+    var.law_archive_retention_days > 0 ? {
+      "exempt-law-archive-sa-storage-gr" = {
+        name                            = "exempt-law-archive-sa-storage-gr"
+        policy_assignment               = "Enforce-GR-Storage0"
+        management_group_suffix         = "platform"
+        resolved_scope                  = azurerm_storage_account.law_archive[0].id
+        category                        = "Waiver"
+        display_name                    = "LAW Archive SA — Storage ガードレール免除"
+        description                     = "LAW アーカイブは不変性ポリシー付き専用 SA。インフラ暗号化等の作成後変更不可設定があるためガードレール全体を免除"
+        policy_definition_reference_ids = null
+      }
+    } : {},
+    # LAW Archive SA: CMK 免除
+    var.law_archive_retention_days > 0 ? {
+      "exempt-law-archive-sa-cmk" = {
+        name                            = "exempt-law-archive-sa-cmk"
+        policy_assignment               = "Enforce-Encrypt-CMK0"
+        management_group_suffix         = "platform"
+        resolved_scope                  = azurerm_storage_account.law_archive[0].id
+        category                        = "Waiver"
+        display_name                    = "LAW Archive SA — CMK 免除"
+        description                     = "CMK はコスト・運用複雑性のトレードオフにより見送り。Microsoft-managed keys で運用"
+        policy_definition_reference_ids = null
+      }
+    } : {},
+    # IaC Compliance: ブートストラップリソース免除
+    # rg-terraform-state は Terraform 実行の前提条件（鶏と卵問題）で Terraform 管理外
+    local._terraform_state_rg_scope != "" ? {
+      "exempt-terraform-bootstrap-iac" = {
+        name                            = "exempt-terraform-bootstrap-iac"
+        policy_assignment               = "Assign-IaC-Compliance"
+        management_group_suffix         = "platform"
+        resolved_scope                  = local._terraform_state_rg_scope
+        category                        = "Waiver"
+        display_name                    = "rg-terraform-state — IaC Compliance 免除"
+        description                     = "Terraform state backend と GitHub Actions OIDC の UAMI はブートストラップリソース。Terraform 管理外だが正当なインフラ前提リソース"
+        policy_definition_reference_ids = null
+      }
+    } : {},
+  )
+
+  # --- 統合: グローバル + サブスクリプション + インフラ動的免除 ---
+  policy_exemptions = merge(local._global_exemptions, local._subscription_exemptions, local._infrastructure_exemptions)
 }
 
 # ---------------------------------------------------------------------------

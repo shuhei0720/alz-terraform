@@ -401,7 +401,8 @@ resource "azapi_resource" "vending_subnets" {
   body = {
     properties = merge(
       {
-        addressPrefix = each.value.address_prefix
+        addressPrefix         = each.value.address_prefix
+        defaultOutboundAccess = false
         networkSecurityGroup = {
           id = azapi_resource.vending_nsgs[each.key].id
         }
