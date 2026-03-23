@@ -720,7 +720,10 @@ resource "azurerm_subnet_route_table_association" "gateway" {
   subnet_id      = azurerm_subnet.gateway[each.key].id
   route_table_id = azurerm_route_table.gateway[each.key].id
 
-  depends_on = [azurerm_virtual_network_gateway.er]
+  # policy_exemptions: destroy 時に免除が先に削除されると Network GR の
+  # deny-subnet-without-udr が UDR 解除をブロックするため、
+  # destroy 順序を route_table_association → exemptions に強制する
+  depends_on = [azurerm_virtual_network_gateway.er, azapi_resource.policy_exemptions]
 }
 
 # GatewaySubnet ルート: var.spoke_virtual_networks の各 Spoke VNet → Firewall
