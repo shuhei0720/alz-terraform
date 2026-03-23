@@ -1712,14 +1712,20 @@ echo "CLIENT_ID: $CLIENT_ID"
 #### Step 3: フェデレーション資格情報の追加
 
 GitHub Actions の OIDC トークンと UAMI を紐付けます。
-**main ブランチ用**と **PR 用**の 2 つの資格情報が必要です。
+以下の **3 つの資格情報**が必要です。
+
+| 資格情報名 | subject | 用途 |
+|---|---|---|
+| `github-main` | `ref:refs/heads/main` | CI: main ブランチ push 時の plan |
+| `github-pr` | `pull_request` | CI: PR 作成・更新時の validate + plan |
+| `github-environment-azure` | `environment:azure` | CD: apply / destroy（GitHub Environment 経由） |
 
 ```bash
 # GitHubの情報を設定してください。
 GITHUB_ORG="<your-github-org-or-user>"
 GITHUB_REPO="<your-repo-name>"
 
-# main ブランチ用（CD: apply/destroy で使用）
+# main ブランチ用（CI: main push 時の plan で使用）
 az identity federated-credential create \
   --name "github-main" \
   --identity-name "$UAMI_NAME" \
@@ -1736,10 +1742,23 @@ az identity federated-credential create \
   --issuer "https://token.actions.githubusercontent.com" \
   --subject "repo:${GITHUB_ORG}/${GITHUB_REPO}:pull_request" \
   --audiences "api://AzureADTokenExchange"
+
+# GitHub Environment 用（CD: apply/destroy で使用）
+# cd.yaml の apply/destroy ジョブは `environment: azure` を指定するため、
+# OIDC トークンの subject が `environment:azure` になります。
+az identity federated-credential create \
+  --name "github-environment-azure" \
+  --identity-name "$UAMI_NAME" \
+  --resource-group "$RG_NAME" \
+  --issuer "https://token.actions.githubusercontent.com" \
+  --subject "repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:azure" \
+  --audiences "api://AzureADTokenExchange"
 ```
 
-> **重要**: `subject` の形式が間違っていると OIDC 認証が `AADSTS70021` エラーで失敗します。
-> ブランチ指定は `ref:refs/heads/main`、PR は `pull_request` です。
+> **重要**: `subject` の形式が間違っていると OIDC 認証が `AADSTS700213` エラーで失敗します。
+> ブランチ指定は `ref:refs/heads/main`、PR は `pull_request`、GitHub Environment は `environment:<環境名>` です。
+> CD ワークフローの `apply` / `destroy` ジョブは `environment: azure` を使用するため、
+> `environment:azure` の資格情報がないと CD で認証エラーになります。
 
 #### Step 4: UAMI へのロール割り当て
 
