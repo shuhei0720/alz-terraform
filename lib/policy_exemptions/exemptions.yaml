@@ -104,7 +104,6 @@ exemptions:
   #
   # 免除対象は Azure Policy では対処不可能な以下の 3 カテゴリに限定:
   #   カスタム RBAC ロール — ALZ 設計に必要なロール定義（構造的）
-  #   Defender for APIs   — 組織的コスト判断
   #   Identity / Entra ID — Entra ID Access Reviews で別途管理（Azure Policy 管轄外）
   #   DDoS Protection     — DDoS Protection Plan 未契約（組織的コスト判断）
   #
@@ -127,8 +126,6 @@ exemptions:
     policy_definition_reference_ids:
       # カスタム RBAC ロール — ALZ 設計上の構造的要件
       - userbacrulesmonitoring
-      # Defender for APIs — 組織的コスト判断
-      - enabledefenderforapis
       # Identity / Entra ID — Azure Policy では対処不可、Entra ID Access Reviews で管理
       - identitydesignatemorethanoneownermonitoring
       - identitydesignatelessthanownersmonitoring
@@ -153,8 +150,6 @@ exemptions:
     policy_definition_reference_ids:
       # カスタム RBAC ロール
       - userbacrulesmonitoring
-      # Defender for APIs
-      - enabledefenderforapis
       # Identity / Entra ID
       - identitydesignatemorethanoneownermonitoring
       - identitydesignatelessthanownersmonitoring
