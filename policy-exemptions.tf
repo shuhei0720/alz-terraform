@@ -122,5 +122,21 @@ resource "azapi_resource" "policy_exemptions" {
 
   response_export_values = []
 
-  depends_on = [azapi_resource.alz_policy_assignments]
+  # MG 階層伝搬後の一時的な "not at or under" エラーに対応
+  retry = {
+    error_message_regex  = ["not at or under", "InvalidCreatePolicyExemptionRequest"]
+    interval_seconds     = 30
+    max_interval_seconds = 300
+  }
+
+  depends_on = [
+    azapi_resource.alz_policy_assignments,
+    # サブスクリプションが MG 配下に配置されてから免除を作成する
+    azurerm_management_group_subscription_association.management,
+    azurerm_management_group_subscription_association.connectivity,
+    azurerm_management_group_subscription_association.identity,
+    azurerm_management_group_subscription_association.security,
+    azurerm_management_group_subscription_association.vending,
+    azurerm_management_group_subscription_association.vending_existing,
+  ]
 }
