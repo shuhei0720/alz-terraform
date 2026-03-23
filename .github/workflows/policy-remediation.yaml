@@ -48,7 +48,7 @@ jobs:
             echo "  Scanning MG: $MG"
             MG_ASSIGNMENTS=$(az policy assignment list \
               --scope "/providers/Microsoft.Management/managementGroups/$MG" \
-              --query "[?identity.type].{name:name, id:id, policyDefinitionId:policyDefinitionId, scope:scope}" \
+              --query "[?identity.type && identity.type!='None'].{name:name, id:id, policyDefinitionId:policyDefinitionId, scope:scope}" \
               -o json 2>/dev/null || echo "[]")
             ASSIGNMENTS=$(echo "$ASSIGNMENTS" "$MG_ASSIGNMENTS" | jq -s 'add | unique_by(.id)')
           done
@@ -98,8 +98,10 @@ jobs:
               REF_COUNT=$(echo "$REFS" | wc -l)
               echo "  $NAME (initiative, $REF_COUNT members)"
               while IFS= read -r REF; do
+                # policyDefinitionReferenceId の / を _ に置換（API がサブリソースと誤認するため）
+                SAFE_REF=$(echo "$REF" | tr '/' '_')
                 if az policy remediation create \
-                  --name "rem-${NAME}-${REF}-${TS}" \
+                  --name "rem-${NAME}-${SAFE_REF}-${TS}" \
                   --management-group "$MG_NAME" \
                   --policy-assignment "$ID" \
                   --definition-reference-id "$REF" \

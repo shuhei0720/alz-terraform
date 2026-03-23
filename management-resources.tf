@@ -57,6 +57,21 @@ resource "azurerm_user_assigned_identity" "amba" {
   tags                = var.tags
 }
 
+# AMBA UAMI ロール割り当て
+# scheduledQueryRules がこの UAMI を使って LAW / ARG クエリを実行するため、
+# root MG スコープで Reader 権限が必要。
+resource "azurerm_role_assignment" "amba_log_analytics_reader" {
+  scope                = "/providers/Microsoft.Management/managementGroups/${var.root_id}"
+  role_definition_name = "Log Analytics Reader"
+  principal_id         = azurerm_user_assigned_identity.amba.principal_id
+}
+
+resource "azurerm_role_assignment" "amba_monitoring_reader" {
+  scope                = "/providers/Microsoft.Management/managementGroups/${var.root_id}"
+  role_definition_name = "Monitoring Reader"
+  principal_id         = azurerm_user_assigned_identity.amba.principal_id
+}
+
 # =============================================================================
 # Data Collection Rule: VM パフォーマンス監視（azapi — InvalidPayload 自動リトライ対応）
 # =============================================================================
