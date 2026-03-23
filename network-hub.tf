@@ -625,11 +625,12 @@ resource "azurerm_virtual_network_gateway" "er" {
   location            = each.value.location
   resource_group_name = azurerm_resource_group.hub[each.key].name
   type                = "ExpressRoute"
-  sku                 = "Standard"
+  sku                 = each.value.gateway_sku
 
   ip_configuration {
     name                          = "ergw-ipconfig"
     subnet_id                     = azurerm_subnet.gateway[each.key].id
+    public_ip_address_id          = azurerm_public_ip.er_gateway[each.key].id
     private_ip_address_allocation = "Dynamic"
   }
 
