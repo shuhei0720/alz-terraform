@@ -81,11 +81,11 @@ locals {
   _subscription_exemptions = {
     for e in local._subscription_exemptions_list :
     e.name => {
-      name                         = e.name
-      policy_assignment            = e.policy_assignment
-      category                     = e.category
-      display_name                 = e.display_name
-      description                  = try(e.description, null)
+      name                            = e.name
+      policy_assignment               = e.policy_assignment
+      category                        = e.category
+      display_name                    = e.display_name
+      description                     = try(e.description, null)
       policy_definition_reference_ids = try(e.policy_definition_reference_ids, null)
       management_group_suffix = try(
         e.management_group_suffix,
