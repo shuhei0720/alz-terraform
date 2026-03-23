@@ -4,11 +4,11 @@
   "apiVersion": "2021-06-01",
   "properties": {
     "displayName": "IaC準拠チェックポリシーセット",
-    "description": "Terraform等のIaCツールで管理されていないリソースを検出するポリシーセット",
+    "description": "Terraform等のIaCツールで管理されていないリソースを検出するポリシーセット。Azure自動作成リソースやポリシー(DINE)デプロイリソースは除外可能",
     "policyType": "Custom",
     "metadata": {
       "category": "Tags",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source": "Custom"
     },
     "parameters": {
@@ -20,6 +20,23 @@
         },
         "allowedValues": ["Audit", "Deny", "Disabled"],
         "defaultValue": "Audit"
+      },
+      "excludedResourceTypes": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "除外リソースタイプ",
+          "description": "IaC準拠チェックから除外するリソースタイプ（Azure自動作成・ポリシーDINEデプロイ等）"
+        },
+        "defaultValue": [
+          "microsoft.network/networkwatchers",
+          "microsoft.eventgrid/systemtopics",
+          "microsoft.insights/activitylogalerts",
+          "microsoft.insights/metricalerts",
+          "microsoft.insights/actiongroups",
+          "microsoft.security/automations",
+          "microsoft.alertsmanagement/actionrules",
+          "microsoft.operationsmanagement/solutions"
+        ]
       }
     },
     "policyDefinitions": [
@@ -35,6 +52,9 @@
           },
           "tagValue": {
             "value": "terraform"
+          },
+          "excludedResourceTypes": {
+            "value": "[parameters('excludedResourceTypes')]"
           }
         }
       }
