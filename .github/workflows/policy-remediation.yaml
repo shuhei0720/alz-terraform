@@ -75,9 +75,14 @@ jobs:
             if [[ "$POLICY_DEF" == */policySetDefinitions/* ]]; then
               # イニシアティブ: メンバーポリシーごとに修復タスクを作成
               SET_NAME=$(basename "$POLICY_DEF")
+              # カスタム定義（MG スコープ）→ ビルトイン定義（グローバル）の順で照会
               REFS=$(az policy set-definition show \
                 --name "$SET_NAME" \
                 --management-group "$ROOT_MG" \
+                --query "policyDefinitions[].policyDefinitionReferenceId" \
+                -o tsv 2>/dev/null) || \
+              REFS=$(az policy set-definition show \
+                --name "$SET_NAME" \
                 --query "policyDefinitions[].policyDefinitionReferenceId" \
                 -o tsv 2>&1) || {
                 echo "  ⚠ $NAME: could not list initiative members — skipping"
