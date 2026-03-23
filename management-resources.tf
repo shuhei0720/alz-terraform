@@ -331,20 +331,22 @@ resource "azurerm_storage_management_policy" "law_archive" {
 }
 
 # Data Export Rule: LAW の指定テーブルを Storage Account にニアリアルタイムで自動エクスポート
-resource "azapi_resource" "law_data_export" {
+# azapi_resource から azurerm ネイティブリソースに移行（専用ポーラー + 30 分タイムアウトで安定性向上）
+resource "azurerm_log_analytics_data_export_rule" "law_data_export" {
   count = var.law_archive_retention_days > 0 ? 1 : 0
 
-  type      = "Microsoft.OperationalInsights/workspaces/dataExports@2020-08-01"
-  name      = "export-to-archive"
-  parent_id = azurerm_log_analytics_workspace.main.id
+  provider                = azurerm.management
+  name                    = "export-to-archive"
+  resource_group_name     = azurerm_resource_group.management.name
+  workspace_resource_id   = azurerm_log_analytics_workspace.main.id
+  destination_resource_id = azurerm_storage_account.law_archive[0].id
+  table_names             = var.law_archive_export_tables
+  enabled                 = true
+}
 
-  body = {
-    properties = {
-      destination = {
-        resourceId = azurerm_storage_account.law_archive[0].id
-      }
-      tableNames = var.law_archive_export_tables
-      enable     = true
-    }
-  }
+# 移行用: 既存の Azure リソースを新しい azurerm リソースに取り込む
+# 初回 apply 成功後に削除可能（state に取り込み済みであれば no-op）
+import {
+  to = azurerm_log_analytics_data_export_rule.law_data_export[0]
+  id = "${azurerm_log_analytics_workspace.main.id}/dataExports/export-to-archive"
 }
