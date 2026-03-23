@@ -100,6 +100,15 @@ hub_virtual_networks = {
 amba_alert_email = ["platform-team@example.com"]
 
 # =============================================================================
+# Policy Exemptions
+# =============================================================================
+
+# Terraform state backend のストレージアカウントリソース ID
+# ガードレール強制化に伴い、state SA を Storage/CMK ポリシーから免除する。
+# 空文字の場合は免除を作成しない。
+# terraform_state_storage_account_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-terraform/providers/Microsoft.Storage/storageAccounts/stterraformstate"
+
+# =============================================================================
 # Subscription Vending
 # =============================================================================
 

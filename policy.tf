@@ -32,6 +32,56 @@ provider "alz" {
 
 provider "azapi" {}
 
+# --- ガードレール・CMK 強制化オーバーライド ---
+#
+# ALZ ライブラリのデフォルトでは全ガードレールが enforcementMode=DoNotEnforce
+# （段階的有効化の推奨設計）。本リポジトリでは Default（強制）に切り替え、
+# 免除が必要なリソースは exemptions/ YAML で個別管理する。
+
+locals {
+  guardrail_enforcement_overrides = merge(
+    # 標準の DoNotEnforce → Default 切り替え（28 ポリシー）
+    { for name in [
+      "Enforce-Encrypt-CMK0",
+      "Enforce-GR-APIM0",
+      "Enforce-GR-AppServices0",
+      "Enforce-GR-Automation0",
+      "Enforce-GR-BotService0",
+      "Enforce-GR-CogServ0",
+      "Enforce-GR-Compute0",
+      "Enforce-GR-ContApps0",
+      "Enforce-GR-ContInst0",
+      "Enforce-GR-ContReg0",
+      "Enforce-GR-CosmosDb0",
+      "Enforce-GR-DataExpl0",
+      "Enforce-GR-DataFactory0",
+      "Enforce-GR-EventGrid0",
+      "Enforce-GR-EventHub0",
+      "Enforce-GR-KeyVaultSup0",
+      "Enforce-GR-Kubernetes0",
+      "Enforce-GR-MachLearn0",
+      "Enforce-GR-MySQL0",
+      "Enforce-GR-OpenAI0",
+      "Enforce-GR-PostgreSQL0",
+      "Enforce-GR-SQL0",
+      "Enforce-GR-ServiceBus0",
+      "Enforce-GR-Storage0",
+      "Enforce-GR-Synapse0",
+      "Enforce-GR-VirtualDesk0",
+      "Enforce-Subnet-Private",
+    ] : name => { enforcement_mode = "Default" } },
+    # Network GR: DDoS Modify を無効化（DDoS Protection Plan 未契約のため）
+    {
+      Enforce-GR-Network0 = {
+        enforcement_mode = "Default"
+        parameters = {
+          vnetModifyDdos = jsonencode({ value = "Disabled" })
+        }
+      }
+    }
+  )
+}
+
 # --- データソース: ライブラリからポリシーを計算 ---
 
 data "alz_architecture" "this" {
@@ -110,8 +160,9 @@ data "alz_architecture" "this" {
     # =========================================================================
     # ALZ: DDoS Protection
     # =========================================================================
-    # DDoS Protection Plan は高コストのため DoNotEnforce にしている場合でも
-    # ダミー値の設定が必要（未設定だとプロバイダーエラー）
+    # DDoS Protection Plan は未契約だが、ダミー値が必要（未設定だとプロバイダーエラー）。
+    # Enable-DDoS-VNET は connectivity/landing_zones から除外済み。
+    # Enforce-GR-Network0 の vnetModifyDdos も Disabled にオーバーライド済み。
     ddos_protection_plan_id = jsonencode({
       value = "/subscriptions/${var.subscription_ids["connectivity"]}/resourceGroups/rg-ddos-${var.primary_location}/providers/Microsoft.Network/ddosProtectionPlans/ddos-${var.primary_location}"
     })
@@ -199,7 +250,11 @@ data "alz_architecture" "this" {
   # ===========================================================================
   # ALZ ライブラリのデフォルトでは Deploy-MDFC-Config-H224 の全プランが
   # "Disabled" のため、ここで DeployIfNotExists にオーバーライドします。
+  #
+  # ガードレール・CMK は DoNotEnforce → Default（強制）に切り替え。
+  # 免除が必要なリソースは exemptions/ YAML で個別管理する。
   policy_assignments_to_modify = {
+    # Root: MDFC 全プラン有効化
     (var.root_id) = {
       policy_assignments = {
         Deploy-MDFC-Config-H224 = {
@@ -219,6 +274,14 @@ data "alz_architecture" "this" {
           }
         }
       }
+    }
+    # Platform: ガードレール・CMK 強制化
+    "${var.root_id}-platform" = {
+      policy_assignments = local.guardrail_enforcement_overrides
+    }
+    # Landing Zones: ガードレール・CMK 強制化
+    "${var.root_id}-landingzones" = {
+      policy_assignments = local.guardrail_enforcement_overrides
     }
   }
 }

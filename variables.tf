@@ -308,3 +308,13 @@ variable "amba_alert_email" {
   type        = list(string)
   default     = []
 }
+
+# =============================================================================
+# Policy Exemptions
+# =============================================================================
+
+variable "terraform_state_storage_account_id" {
+  description = "Terraform state backend のストレージアカウントリソース ID（ポリシー免除用）。空の場合は免除を作成しない"
+  type        = string
+  default     = ""
+}

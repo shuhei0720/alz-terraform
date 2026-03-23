@@ -1,0 +1,24 @@
+# Terraform State ストレージアカウントのポリシー免除
+#
+# state backend は Terraform 自身が管理するインフラ前提リソースのため、
+# ガードレールの一部ポリシーから除外が必要。
+#
+# resource_id は var.terraform_state_storage_account_id から注入される。
+
+exemptions:
+  # Storage ガードレール: SharedKey Deny、パブリックアクセス Modify、
+  # キーローテーション Deny 等が state backend 運用と競合
+  - policy_assignment: Enforce-GR-Storage0
+    category: Waiver
+    display_name: "Terraform state SA — Storage ガードレール免除"
+    description: >-
+      State backend は GitHub Actions OIDC 経由で管理。
+      SharedKey 制限・パブリックアクセス制御は Azure Portal で個別設定済み。
+
+  # CMK 強制: state SA は Microsoft-managed keys で運用
+  - policy_assignment: Enforce-Encrypt-CMK0
+    category: Waiver
+    display_name: "Terraform state SA — CMK 免除"
+    description: >-
+      State backend は Microsoft-managed keys で運用。
+      CMK 導入はコスト・運用複雑性のトレードオフにより見送り。
