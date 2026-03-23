@@ -5,12 +5,16 @@
 # ガードレール強制化に伴い、特定リソースに対するポリシー免除を
 # lib/policy_exemptions/ の YAML で宣言的に管理する。
 #
+# azapi_resource を使用しているため:
+#   - 任意のサブスクリプション（基盤・Spoke 問わず）に適用可能
+#   - MG / サブスクリプション / RG / リソース の全スコープレベルに対応
+#
 # YAML フォーマット:
 #   exemptions:
 #     - name: <一意の免除名>
 #       policy_assignment: <ポリシー割り当て名>
 #       management_group_suffix: <MG サフィックス（root_id-{suffix}）>
-#       scope: <免除スコープのリソース ID — ${変数名} で変数参照可>
+#       scope: <免除スコープ — ${変数名} で変数参照可>
 #       category: Waiver | Mitigated
 #       display_name: <表示名>
 #       description: <理由>
@@ -48,20 +52,26 @@ locals {
 }
 
 # ---------------------------------------------------------------------------
-# リソーススコープのポリシー免除
+# ポリシー免除（全スコープ・全サブスクリプション対応）
 # ---------------------------------------------------------------------------
-resource "azurerm_resource_policy_exemption" "managed" {
+resource "azapi_resource" "policy_exemptions" {
   for_each = local.policy_exemptions
 
-  provider = azurerm.management
+  type      = "Microsoft.Authorization/policyExemptions@2022-07-01-preview"
+  name      = each.key
+  parent_id = each.value.resolved_scope
 
-  name                            = each.key
-  resource_id                     = each.value.resolved_scope
-  policy_assignment_id            = azapi_resource.alz_policy_assignments["${var.root_id}-${each.value.management_group_suffix}/${each.value.policy_assignment}"].id
-  exemption_category              = each.value.category
-  display_name                    = each.value.display_name
-  description                     = each.value.description
-  policy_definition_reference_ids = try(each.value.policy_definition_reference_ids, null)
+  body = {
+    properties = {
+      policyAssignmentId           = azapi_resource.alz_policy_assignments["${var.root_id}-${each.value.management_group_suffix}/${each.value.policy_assignment}"].id
+      exemptionCategory            = each.value.category
+      displayName                  = each.value.display_name
+      description                  = try(each.value.description, null)
+      policyDefinitionReferenceIds = try(each.value.policy_definition_reference_ids, null)
+    }
+  }
+
+  response_export_values = []
 
   depends_on = [azapi_resource.alz_policy_assignments]
 }

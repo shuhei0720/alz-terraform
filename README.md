@@ -849,10 +849,7 @@ Azure Policy の免除は**スコープ**を指定して、そのスコープ配
 | リソースグループ | `/subscriptions/.../resourceGroups/rg-terraform-state` | RG 内の全リソース |
 | リソース | `/subscriptions/.../providers/Microsoft.Storage/storageAccounts/stterraform...` | そのリソースのみ |
 
-> **注意**: 現在の実装（`azurerm_resource_policy_exemption`）は**リソーススコープ**のみ対応しています。  
-> MG / サブスクリプション / RG レベルの免除が必要な場合はコードの拡張が必要です。  
-> また `provider = azurerm.management` を使用するため、**Management サブスクリプション内のリソース**が対象です。  
-> 他サブスクリプションのリソースを免除する場合は provider の追加が必要です。
+> `azapi_resource` を使用しているため、**任意のサブスクリプション**（基盤・Spoke 問わず）の**全スコープレベル**に対応しています。
 
 免除ファイルは `lib/policy_exemptions/` に配置します:
 
