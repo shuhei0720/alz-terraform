@@ -309,32 +309,30 @@ jobs:
               continue
             fi
 
-            # --- Pass 1: non-current versions → ポリシー削除 → バージョン削除 ---
+            # --- Pass 1: non-current versions → バージョン削除 ---
             NC_COUNT=$(echo "$BLOBS" | jq '[.[] | select(.isCurrentVersion != true and .versionId != null)] | length')
             if [[ "$NC_COUNT" -gt 0 ]]; then
               echo "    Deleting $NC_COUNT non-current versions..."
               echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion != true and .versionId != null) | "\(.versionId)\t\(.name)"' | \
               while IFS=$'\t' read -r VID BNAME; do
                 az storage blob immutability-policy delete -c "$C" -n "$BNAME" \
-                  --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" --output none 2>&1 || true
-                az storage blob delete -c "$C" -b "$BNAME" \
+                  --account-name "$SA_NAME" --account-key "$KEY" --output none 2>&1 || true
+                az storage blob delete -c "$C" -n "$BNAME" \
                   --account-name "$SA_NAME" --account-key "$KEY" --version-id "$VID" --output none 2>&1 || true
               done
             fi
 
             # --- Pass 2: current (root) versions ---
-            # immutability-policy delete はルート Blob に使えない (OperationNotAllowedOnRootBlob)
-            # immutability-policy set --version-id でバージョン固有のポリシーを短縮→期限切れ後に削除
-            # blob delete はルート Blob なので --version-id を付けない
+            # immutability-policy set/delete は --version-id 非対応（CLI の仕様）
+            # root blob に対して set で保持期間を短縮→期限切れ後に blob delete -n
             CUR_COUNT=$(echo "$BLOBS" | jq '[.[] | select(.isCurrentVersion == true)] | length')
             if [[ "$CUR_COUNT" -gt 0 ]]; then
               EXPIRY=$(date -u -d "+30 seconds" '+%Y-%m-%dT%H:%M:%SZ')
               echo "    Shortening immutability on $CUR_COUNT root blobs (expires $EXPIRY)..."
-              echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | "\(.versionId)\t\(.name)"' | \
-              while IFS=$'\t' read -r VID BNAME; do
+              echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | .name' | \
+              while IFS= read -r BNAME; do
                 az storage blob immutability-policy set -c "$C" -n "$BNAME" \
                   --account-name "$SA_NAME" --account-key "$KEY" \
-                  --version-id "$VID" \
                   --expiry-time "$EXPIRY" --policy-mode Unlocked --output none 2>&1 || true
               done
 
@@ -344,7 +342,7 @@ jobs:
               echo "    Deleting $CUR_COUNT root blobs..."
               echo "$BLOBS" | jq -r '.[] | select(.isCurrentVersion == true) | .name' | \
               while IFS= read -r BNAME; do
-                az storage blob delete -c "$C" -b "$BNAME" \
+                az storage blob delete -c "$C" -n "$BNAME" \
                   --account-name "$SA_NAME" --account-key "$KEY" --output none 2>&1 || true
               done
             fi
