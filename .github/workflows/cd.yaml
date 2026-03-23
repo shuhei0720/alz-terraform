@@ -221,6 +221,13 @@ jobs:
             -backend-config="container_name=${{ secrets.BACKEND_CONTAINER }}" \
             -backend-config="key=alz.terraform.tfstate"
 
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Pre-Destroy Cleanup
         run: |
           set +e +o pipefail
@@ -242,15 +249,33 @@ jobs:
             exit 0
           fi
 
+          # az CLI 認証確認
+          if ! az account show -o none 2>/dev/null; then
+            echo "::error::az CLI is not authenticated — cannot perform pre-destroy cleanup"
+            exit 1
+          fi
+
           if ! az storage account show -n "$SA_NAME" -g "$RG_NAME" -o none 2>/dev/null; then
             echo "Storage Account $SA_NAME not found in Azure"
-            for res in $(terraform state list 2>/dev/null | grep 'law_archive'); do
+            for res in $(terraform state list 2>/dev/null | grep 'law_archive\|law_data_export'); do
               terraform state rm "$res" || true
             done
             exit 0
           fi
 
           echo "::notice::Cleaning up WORM-protected Storage Account: $SA_NAME"
+
+          # Data Export Rule を先に削除（新規 Blob 書き込みを停止）
+          LAW_NAME=$(terraform state show 'azurerm_log_analytics_workspace.main' 2>/dev/null \
+            | grep '^\s*name\s' | head -1 | awk -F'"' '{print $2}')
+          if [[ -n "$LAW_NAME" ]]; then
+            echo "Deleting Data Export Rule on $LAW_NAME..."
+            az monitor log-analytics workspace data-export delete \
+              --resource-group "$RG_NAME" \
+              --workspace-name "$LAW_NAME" \
+              --name "export-to-archive" --yes 2>/dev/null || true
+            sleep 15
+          fi
 
           # パブリックアクセス有効化（データプレーン操作に必要）
           az storage account update -n "$SA_NAME" -g "$RG_NAME" \
@@ -261,16 +286,18 @@ jobs:
           KEY=$(az storage account keys list -n "$SA_NAME" -g "$RG_NAME" \
             --query "[0].value" -o tsv)
 
-          # ソフトデリート無効化
+          # ソフトデリート・バージョニング無効化
           az storage account blob-service-properties update \
             --account-name "$SA_NAME" -g "$RG_NAME" \
             --enable-delete-retention false \
             --enable-container-delete-retention false \
+            --enable-versioning false \
             --output none 2>/dev/null || true
 
           # Blob 不変性ポリシー削除 + Blob 削除（az CLI は --version-id 非対応のため REST API 使用）
           CONTAINERS=$(az storage container list --account-name "$SA_NAME" \
-            --account-key "$KEY" --query "[].name" -o tsv 2>/dev/null || echo "")
+            --account-key "$KEY" --include-deleted \
+            --query "[].name" -o tsv 2>/dev/null || echo "")
           if [[ -n "$CONTAINERS" ]]; then
             python3 - "$SA_NAME" "$KEY" "$CONTAINERS" << 'PYEOF'
           import json, subprocess, sys, hmac, hashlib, base64
@@ -300,7 +327,7 @@ jobs:
           for c in containers:
               r = subprocess.run(
                   ["az", "storage", "blob", "list", "--account-name", acct, "-c", c,
-                   "--account-key", key_b64, "--include", "v",
+                   "--account-key", key_b64, "--include", "vd",
                    "--query", "[].{name:name,versionId:versionId}", "-o", "json"],
                   capture_output=True, text=True)
               blobs = json.loads(r.stdout) if r.returncode == 0 else []
@@ -314,7 +341,8 @@ jobs:
                           "-c", c, "-n", name, "--account-name", acct, "--account-key", key_b64],
                           capture_output=True)
                       subprocess.run(["az", "storage", "blob", "delete",
-                          "-c", c, "-n", name, "--account-name", acct, "--account-key", key_b64],
+                          "-c", c, "-n", name, "--account-name", acct, "--account-key", key_b64,
+                          "--delete-snapshots", "include"],
                           capture_output=True)
               print(f"  Container {c}: {len(blobs)} blob(s) cleaned")
           PYEOF
@@ -335,8 +363,8 @@ jobs:
             echo "::notice::Storage Account $SA_NAME deleted"
           fi
 
-          # state から law_archive 関連リソースを除外
-          for res in $(terraform state list 2>/dev/null | grep 'law_archive'); do
+          # state から law_archive + data_export 関連リソースを除外
+          for res in $(terraform state list 2>/dev/null | grep 'law_archive\|law_data_export'); do
             terraform state rm "$res" || true
           done
 
