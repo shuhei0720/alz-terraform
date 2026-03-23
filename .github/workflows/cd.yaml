@@ -231,6 +231,28 @@ jobs:
       - name: Pre-Destroy Cleanup
         run: |
           set +e +o pipefail
+
+          # ---------------------------------------------------------------
+          # DenyAction ポリシー削除 — UAMI 等の削除をブロックする DenyAction
+          # ポリシーを事前に解除する。Terraform refresh で消滅検知されるため
+          # terraform destroy 側で二重削除エラーにはならない。
+          # ---------------------------------------------------------------
+          echo "::group::DenyAction policy cleanup"
+          ROOT_ID=$(grep -oP 'root_id\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "alz")
+          DENY_ASSIGNMENTS=$(az policy assignment list \
+            --scope "/providers/Microsoft.Management/managementGroups/${ROOT_ID}" \
+            --query "[?contains(name,'DenyAction')].{name:name,scope:scope}" -o json 2>/dev/null || echo "[]")
+          echo "$DENY_ASSIGNMENTS" | jq -r '.[] | "\(.scope)/providers/Microsoft.Authorization/policyAssignments/\(.name)"' | \
+          while IFS= read -r ASSIGNMENT_ID; do
+            echo "Deleting DenyAction: $ASSIGNMENT_ID"
+            az policy assignment delete --name "$(basename "$ASSIGNMENT_ID")" \
+              --scope "$(echo "$ASSIGNMENT_ID" | sed 's|/providers/Microsoft.Authorization/policyAssignments/.*||')" 2>/dev/null || true
+          done
+          echo "::endgroup::"
+
+          # ---------------------------------------------------------------
+          # WORM Storage Account クリーンアップ
+          # ---------------------------------------------------------------
           # WORM (バージョンレベル不変性) 有効な Storage Account は terraform destroy で削除不可
           # (AccountProtectedFromDeletion) のため、事前にクリーンアップする
           # Python 不要 — az CLI のみで完結
