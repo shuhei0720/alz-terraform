@@ -42,6 +42,7 @@ hub_virtual_networks = {
     firewall_management_subnet_prefix = null              # 強制トンネリング時のみ必要
     firewall_sku_tier                 = "Standard"
     firewall_threat_intel_mode        = "Deny"
+    # gateway_sku                     = "ErGw1AZ"  # デフォルト: ErGw1AZ（ゾーン冗長）
   }
   # セカンダリリージョンが必要な場合はコメントを解除
   # secondary = {
@@ -53,6 +54,7 @@ hub_virtual_networks = {
   #   firewall_management_subnet_prefix = null
   #   firewall_sku_tier                 = "Standard"
   #   firewall_threat_intel_mode        = "Deny"
+  #   # gateway_sku                     = "ErGw1AZ"
   # }
 }
 
