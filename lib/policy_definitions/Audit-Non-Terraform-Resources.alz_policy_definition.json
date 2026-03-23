@@ -4,12 +4,12 @@
   "apiVersion": "2021-06-01",
   "properties": {
     "displayName": "Terraform以外で作成されたリソースを検出",
-    "description": "deployed_byタグの値が'terraform'でないリソースを検出します。IaC運用の徹底に活用できます。",
+    "description": "deployed_byタグの値が'terraform'でないリソースを検出します。Azure自動作成リソースやポリシー(DINE)デプロイリソースは除外可能です。",
     "policyType": "Custom",
     "mode": "Indexed",
     "metadata": {
       "category": "Tags",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "source": "Custom"
     },
     "parameters": {
@@ -37,18 +37,43 @@
           "description": "このタグ値を持つリソースは準拠とみなされます"
         },
         "defaultValue": "terraform"
+      },
+      "excludedResourceTypes": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "除外リソースタイプ",
+          "description": "IaC準拠チェックから除外するリソースタイプ（Azure自動作成・ポリシーDINEデプロイ等）"
+        },
+        "defaultValue": [
+          "microsoft.network/networkwatchers",
+          "microsoft.eventgrid/systemtopics",
+          "microsoft.insights/activitylogalerts",
+          "microsoft.insights/metricalerts",
+          "microsoft.insights/actiongroups",
+          "microsoft.security/automations",
+          "microsoft.alertsmanagement/actionrules",
+          "microsoft.operationsmanagement/solutions"
+        ]
       }
     },
     "policyRule": {
       "if": {
-        "anyOf": [
+        "allOf": [
           {
-            "field": "[concat('tags[', parameters('tagName'), ']')]",
-            "exists": "false"
+            "field": "type",
+            "notIn": "[parameters('excludedResourceTypes')]"
           },
           {
-            "field": "[concat('tags[', parameters('tagName'), ']')]",
-            "notEquals": "[parameters('tagValue')]"
+            "anyOf": [
+              {
+                "field": "[concat('tags[', parameters('tagName'), ']')]",
+                "exists": "false"
+              },
+              {
+                "field": "[concat('tags[', parameters('tagName'), ']')]",
+                "notEquals": "[parameters('tagValue')]"
+              }
+            ]
           }
         ]
       },

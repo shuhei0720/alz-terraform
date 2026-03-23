@@ -101,6 +101,14 @@ active_hub_key = "secondary"
 amba_alert_email = ["platform-team@example.com"]
 
 # =============================================================================
+# Policy Exemptions
+# =============================================================================
+
+# Terraform state backend のストレージアカウントリソース ID
+# ガードレール強制化に伴い、state SA を Storage/CMK ポリシーから免除する
+terraform_state_storage_account_id = "/subscriptions/bec80a1b-7f04-462d-9299-149138ee0e8a/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/stterraformstate061f34c4"
+
+# =============================================================================
 # Subscription Vending
 # =============================================================================
 
