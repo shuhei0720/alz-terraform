@@ -31,6 +31,18 @@
 
 locals {
   # 変数参照の解決マップ（YAML 内の ${var_name} → 実際の値）
+  #
+  # for_each の安定性: 全ての値は計画時に確定する必要がある。
+  # リソース属性 (*.id) に依存すると新規デプロイ時に unknown になり
+  # for_each のキーセットが確定できない。変数と命名規則から
+  # 決定論的に ID を構築する。
+  _law_archive_sa_enabled = var.law_archive_retention_days > 0
+  _law_archive_sa_id = (
+    local._law_archive_sa_enabled
+    ? "/subscriptions/${var.subscription_ids["management"]}/resourceGroups/rg-management-${var.primary_location}/providers/Microsoft.Storage/storageAccounts/stlawarchive${replace(var.primary_location, " ", "")}"
+    : ""
+  )
+
   exemption_scope_vars = {
     terraform_state_storage_account_id = var.terraform_state_storage_account_id
     terraform_state_rg_id = (
@@ -38,7 +50,7 @@ locals {
       ? join("/", slice(split("/", var.terraform_state_storage_account_id), 0, 5))
       : ""
     )
-    law_archive_sa_id            = try(azurerm_storage_account.law_archive[0].id, "")
+    law_archive_sa_id            = local._law_archive_sa_id
     root_management_group_id     = "/providers/Microsoft.Management/managementGroups/${var.root_id}"
     management_subscription_id   = "/subscriptions/${var.subscription_ids["management"]}"
     connectivity_subscription_id = "/subscriptions/${var.subscription_ids["connectivity"]}"
