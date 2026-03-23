@@ -767,8 +767,9 @@ ALZ + AMBA + カスタム（`lib/archetype_definitions/`）の 3 層を合成し
 > **凡例**: 🔧 DINE（DeployIfNotExists）= 自動是正 / 🔍 Audit = 監査のみ / 🚫 Deny = 拒否 / 🛡️ Modify = 自動修正
 >
 > ⚠️ **DoNotEnforce** と記載のあるポリシーは、割り当て済みだが `enforcementMode: DoNotEnforce` で展開されています。
-> 準拠状況は評価されますが、実際の Deny/DINE 効果は発動しません（監査モード相当）。
-> 有効化するには `policy_assignments_to_modify` で `enforcement_mode = "Default"` に変更してください。
+> 準拠状況は評価されますが、リソース作成・更新時に Deny/Modify/DINE 効果は自動発動しません。
+> ただし **手動の修復タスク（Remediation Task）は enforcementMode に関係なく実行可能**です（Modify/DINE が走ります）。
+> 全効果を自動発動させるには `policy_assignments_to_modify` で `enforcement_mode = "Default"` に変更してください。
 
 #### Root（ルート管理グループ — 全サブスクリプションに継承）
 
@@ -825,8 +826,8 @@ Root には基盤全体のセキュリティ・監視ポリシーが集約され
 | Deploy-vmHybr-Monitoring | 🔧 DINE | Hybrid VM 監視の自動デプロイ |
 | Enable-AUM-CheckUpdates | 🔧 DINE | Azure Update Manager の更新チェック自動有効化 |
 | Enforce-ASR | 🔧 DINE | Azure Site Recovery の強制 |
-| Enforce-Encrypt-CMK0 | � Audit（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 監査モードで展開（enforcementMode=DoNotEnforce） |
-| Enforce-GR-APIM0 〜 VirtualDesk0（27 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce で展開。有効化するには `policy_assignments_to_modify` で enforcementMode を `Default` に変更が必要 |
+| Enforce-Encrypt-CMK0 | 🚫 Deny（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 29 ポリシー中 21 個が Deny。DoNotEnforce のため現在はブロックしないが、`Default` に変更すると即時に Deny が有効化 |
+| Enforce-GR-APIM0 〜 VirtualDesk0（27 個） | 🚫🛡️🔧🔍 混合（**DoNotEnforce**） | 各サービスのガードレール — Deny(169)/Modify(42)/DINE(18)/Audit(22) の混合。DoNotEnforce のため自動発動しないが、手動修復タスクで Modify/DINE は実行可能。`Default` に変更すると全エフェクトが即時有効化 |
 | Enforce-Subnet-Private | 🔍 Audit（**DoNotEnforce**） | サブネットのデフォルト送信アクセス — effect=Audit かつ DoNotEnforce |
 | **Assign-IaC-Compliance** | 🔍 Audit | **[カスタム]** IaC 準拠イニシアティブの割り当て |
 
@@ -906,8 +907,8 @@ ALZ 標準の追加ポリシーなし（Root + Platform から継承）。
 | ~~Enable-DDoS-VNET~~ | ~~🛡️ Modify~~ | ~~DDoS Protection Plan の自動割り当て~~ **※ カスタムで削除済み（高コスト）** |
 | Enforce-AKS-HTTPS | 🚫 Deny | AKS の HTTPS イングレス強制 |
 | Enforce-ASR | 🔧 DINE | Azure Site Recovery の強制 |
-| Enforce-Encrypt-CMK0 | � Audit（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 監査モードで展開 |
-| Enforce-GR-APIM0 〜 VirtualDesk0（27 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce |
+| Enforce-Encrypt-CMK0 | 🚫 Deny（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 29 ポリシー中 21 個が Deny。DoNotEnforce のため現在はブロックしないが、`Default` に変更すると即時に Deny が有効化 |
+| Enforce-GR-APIM0 〜 VirtualDesk0（27 個） | 🚫🛡️🔧🔍 混合（**DoNotEnforce**） | 各サービスのガードレール — Deny(169)/Modify(42)/DINE(18)/Audit(22) の混合。DoNotEnforce のため自動発動しないが、手動修復タスクで Modify/DINE は実行可能。`Default` に変更すると全エフェクトが即時有効化 |
 | Enforce-Subnet-Private | 🔍 Audit（**DoNotEnforce**） | サブネットのデフォルト送信アクセス — effect=Audit かつ DoNotEnforce |
 | Enforce-TLS-SSL-Q225 | 🚫 Deny | TLS/SSL の最小バージョン強制 |
 
