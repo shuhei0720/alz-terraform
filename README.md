@@ -826,9 +826,16 @@ Root には基盤全体のセキュリティ・監視ポリシーが集約され
 | Enable-AUM-CheckUpdates | 🔧 DINE | Azure Update Manager の更新チェック自動有効化 |
 | Enforce-ASR | 🔧 DINE | Azure Site Recovery の強制 |
 | Enforce-Encrypt-CMK0 | � Audit（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 監査モードで展開（enforcementMode=DoNotEnforce） |
-| Enforce-GR-APIM0 〜 VirtualDesk0（20 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce で展開。有効化するには `policy_assignments_to_modify` で enforcementMode を `Default` に変更が必要 |
+| Enforce-GR-APIM0 〜 VirtualDesk0（27 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce で展開。有効化するには `policy_assignments_to_modify` で enforcementMode を `Default` に変更が必要 |
 | Enforce-Subnet-Private | 🔍 Audit（**DoNotEnforce**） | サブネットのデフォルト送信アクセス — effect=Audit かつ DoNotEnforce |
 | **Assign-IaC-Compliance** | 🔍 Audit | **[カスタム]** IaC 準拠イニシアティブの割り当て |
+
+**AMBA ポリシー割り当て（2 個）:**
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Deploy-AMBA-HybridVM | 🔧 DINE | Hybrid VM アラートの自動構成 |
+| Deploy-AMBA-VM | 🔧 DINE | VM アラートの自動構成 |
 
 #### Connectivity
 
@@ -900,7 +907,7 @@ ALZ 標準の追加ポリシーなし（Root + Platform から継承）。
 | Enforce-AKS-HTTPS | 🚫 Deny | AKS の HTTPS イングレス強制 |
 | Enforce-ASR | 🔧 DINE | Azure Site Recovery の強制 |
 | Enforce-Encrypt-CMK0 | � Audit（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 監査モードで展開 |
-| Enforce-GR-APIM0 〜 VirtualDesk0（20 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce |
+| Enforce-GR-APIM0 〜 VirtualDesk0（27 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce |
 | Enforce-Subnet-Private | 🔍 Audit（**DoNotEnforce**） | サブネットのデフォルト送信アクセス — effect=Audit かつ DoNotEnforce |
 | Enforce-TLS-SSL-Q225 | 🚫 Deny | TLS/SSL の最小バージョン強制 |
 
