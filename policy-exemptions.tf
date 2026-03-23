@@ -2,42 +2,61 @@
 # ポリシー免除（Policy Exemptions）
 # =============================================================================
 #
-# ガードレール強制化に伴い、プラットフォーム基盤リソースに対して
-# 必要な免除を YAML で定義し、Terraform で展開する。
+# ガードレール強制化に伴い、特定リソースに対するポリシー免除を
+# lib/policy_exemptions/ の YAML で宣言的に管理する。
 #
-# 免除の追加: exemptions/ に YAML を追加するだけで自動適用される。
+# YAML フォーマット:
+#   exemptions:
+#     - name: <一意の免除名>
+#       policy_assignment: <ポリシー割り当て名>
+#       management_group_suffix: <MG サフィックス（root_id-{suffix}）>
+#       scope: <免除スコープのリソース ID — ${変数名} で変数参照可>
+#       category: Waiver | Mitigated
+#       display_name: <表示名>
+#       description: <理由>
+#
+# 免除の追加: lib/policy_exemptions/ に YAML を追加するだけ。
 # =============================================================================
 
 locals {
-  # exemptions/*.yaml を全て読み込み、フラットなリストに展開
-  exemption_files = fileset("${path.module}/exemptions", "*.yaml")
+  # 変数参照の解決マップ（YAML 内の ${var_name} → 実際の値）
+  exemption_scope_vars = {
+    terraform_state_storage_account_id = var.terraform_state_storage_account_id
+  }
 
-  # Terraform state SA の免除（resource_id は変数から注入）
-  state_sa_exemptions = var.terraform_state_storage_account_id != "" ? [
-    for e in yamldecode(file("${path.module}/exemptions/terraform-state-sa.yaml")).exemptions : {
-      key               = "state-sa-${e.policy_assignment}"
-      resource_id       = var.terraform_state_storage_account_id
-      policy_assignment = e.policy_assignment
-      category          = e.category
-      display_name      = e.display_name
-      description       = e.description
-    }
-  ] : []
+  # lib/policy_exemptions/*.yaml を全て読み込み、フラットリストに展開
+  _raw_exemptions = flatten([
+    for f in fileset("${path.module}/lib/policy_exemptions", "*.yaml") :
+    yamldecode(file("${path.module}/lib/policy_exemptions/${f}")).exemptions
+  ])
 
-  # 全免除をマップ化（将来の YAML 追加に対応可能）
-  policy_exemptions = { for e in local.state_sa_exemptions : e.key => e }
+  # scope 内の ${var_name} を実際の値に解決し、空スコープはスキップ
+  policy_exemptions = {
+    for e in local._raw_exemptions :
+    e.name => merge(e, {
+      resolved_scope = try(
+        local.exemption_scope_vars[trimprefix(trimsuffix(e.scope, "}"), "$${")],
+        e.scope
+      )
+    })
+    if try(
+      local.exemption_scope_vars[trimprefix(trimsuffix(e.scope, "}"), "$${")],
+      e.scope
+    ) != ""
+  }
 }
 
-# ポリシー免除を展開
-# platform MG に割り当てられたポリシーに対する免除
+# ---------------------------------------------------------------------------
+# リソーススコープのポリシー免除
+# ---------------------------------------------------------------------------
 resource "azurerm_resource_policy_exemption" "managed" {
   for_each = local.policy_exemptions
 
   provider = azurerm.management
 
-  name                 = substr(replace(each.key, "/[^a-zA-Z0-9-]/", "-"), 0, 64)
-  resource_id          = each.value.resource_id
-  policy_assignment_id = azapi_resource.alz_policy_assignments["${var.root_id}-platform/${each.value.policy_assignment}"].id
+  name                 = each.key
+  resource_id          = each.value.resolved_scope
+  policy_assignment_id = azapi_resource.alz_policy_assignments["${var.root_id}-${each.value.management_group_suffix}/${each.value.policy_assignment}"].id
   exemption_category   = each.value.category
   display_name         = each.value.display_name
   description          = each.value.description
