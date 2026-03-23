@@ -229,6 +229,19 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Pre-Destroy Cleanup
+        env:
+          NC_FILTER_PY: |
+            import json, sys, urllib.parse
+            for b in json.load(sys.stdin):
+                if b.get('isCurrentVersion') != True and b.get('versionId'):
+                    vid = urllib.parse.quote(b['versionId'], safe='')
+                    name = urllib.parse.quote(b['name'], safe='/')
+                    print(f'{vid}\t{name}')
+          CUR_FILTER_PY: |
+            import json, sys, urllib.parse
+            for b in json.load(sys.stdin):
+                if b.get('isCurrentVersion') == True:
+                    print(urllib.parse.quote(b['name'], safe='/'))
         run: |
           set +e +o pipefail
 
@@ -341,14 +354,7 @@ jobs:
 
             # --- Pass 1: non-current versions → 不変性ポリシー削除 + バージョン削除 ---
             # Python で URL エンコード済みリスト生成（1 回の呼び出しで全件処理）
-            NC_LIST=$(echo "$BLOBS" | python3 -c "
-import json, sys, urllib.parse
-for b in json.load(sys.stdin):
-    if b.get('isCurrentVersion') != True and b.get('versionId'):
-        vid = urllib.parse.quote(b['versionId'], safe='')
-        name = urllib.parse.quote(b['name'], safe='/')
-        print(f'{vid}\t{name}')
-" 2>/dev/null || true)
+            NC_LIST=$(echo "$BLOBS" | python3 -c "$NC_FILTER_PY" 2>/dev/null || true)
             if [[ -n "$NC_LIST" ]]; then
               NC_COUNT=$(echo "$NC_LIST" | wc -l)
               echo "    Deleting $NC_COUNT non-current versions via REST API..."
@@ -367,12 +373,7 @@ for b in json.load(sys.stdin):
             # immutability-policy delete は OperationNotAllowedOnRootBlob のため
             # set で Unlocked + 短い保持期間 → 期限切れ後に削除
             # EXPIRY はループ内で毎回計算（ループ時間経過で過去日時になるのを防止）
-            CUR_LIST=$(echo "$BLOBS" | python3 -c "
-import json, sys, urllib.parse
-for b in json.load(sys.stdin):
-    if b.get('isCurrentVersion') == True:
-        print(urllib.parse.quote(b['name'], safe='/'))
-" 2>/dev/null || true)
+            CUR_LIST=$(echo "$BLOBS" | python3 -c "$CUR_FILTER_PY" 2>/dev/null || true)
             if [[ -n "$CUR_LIST" ]]; then
               CUR_COUNT=$(echo "$CUR_LIST" | wc -l)
               echo "    Setting short immutability on $CUR_COUNT root blobs..."
