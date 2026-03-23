@@ -1,0 +1,237 @@
+# =============================================================================
+# ポリシー免除定義
+# =============================================================================
+#
+# 全てのグローバル免除をこのファイルで一元管理する。
+# サブスクリプション固有の免除は subscriptions/<name>.yaml に記述。
+# Hub VNet の免除のみ動的 (Terraform の for_each) のため HCL で管理。
+#
+# スコープ変数 (${var_name}) は policy-exemptions.tf の
+# exemption_scope_vars で実値に解決される。
+#
+# カテゴリ:
+#   Waiver    — 意図的に許容 (設計上の理由・コスト判断)
+#   Mitigated — 別手段で対処済み (DINE 修復待ち等)
+#
+# =============================================================================
+
+exemptions:
+
+  # =========================================================================
+  # 1. ストレージアカウント — ガードレール + CMK
+  # =========================================================================
+  #
+  # Terraform state SA と LAW Archive SA はどちらも基盤インフラ SA で、
+  # ガードレール・CMK 強制の一部/全部を免除する必要がある。
+  #
+  # Enforce-GR-Storage0 の policyDefinitionReferenceId 一覧:
+  #   Deny-Storage-CopyScope, Deny-Storage-ServicesEncryption,
+  #   Deny-Storage-LocalUser, Deny-Storage-SFTP,
+  #   Deny-Storage-NetworkAclsBypass, Deny-Storage-ResourceAccessRulesTenantId,
+  #   Deny-Storage-ResourceAccessRulesResourceId,
+  #   Deny-Storage-NetworkAclsVirtualNetworkRules,
+  #   Deny-Storage-ContainerDeleteRetentionPolicy, Deny-Storage-CorsRules,
+  #   Deny-Storage-Account-Encryption, Deny-Storage-Cross-Tenant,
+  #   Deny-Storage-Shared-Key, Deny-Storage-Infra-Encryption,
+  #   Deny-Storage-Classic, Dine-Storage-Threat-Protection,
+  #   Deny-Storage-Restrict-NetworkRules, Deny-Storage-NetworkRules,
+  #   Deny-Storage-Account-Keys-Expire,
+  #   Modify-Storage-FileSync-PublicEndpoint,
+  #   Modify-Blob-Storage-Account-PublicEndpoint,
+  #   Modify-Storage-Account-PublicEndpoint
+
+  # --- Terraform state SA ---
+  - name: exempt-state-sa-storage-gr
+    policy_assignment: Enforce-GR-Storage0
+    management_group_suffix: platform
+    scope: ${terraform_state_storage_account_id}
+    category: Waiver
+    display_name: "Terraform state SA — Storage ガードレール免除"
+    description: >-
+      State backend は GitHub Actions OIDC 経由で管理。
+      SharedKey 制限・パブリックアクセス制御は Azure Portal で個別設定済み。
+
+  - name: exempt-state-sa-cmk
+    policy_assignment: Enforce-Encrypt-CMK0
+    management_group_suffix: platform
+    scope: ${terraform_state_storage_account_id}
+    category: Waiver
+    display_name: "Terraform state SA — CMK 免除"
+    description: >-
+      Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。
+
+  # --- LAW Archive SA ---
+  - name: exempt-law-archive-sa-storage-gr
+    policy_assignment: Enforce-GR-Storage0
+    management_group_suffix: platform
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — Storage ガードレール免除"
+    description: >-
+      不変性ポリシー (WORM) 付き専用 SA。インフラ暗号化等の作成後変更不可設定があるため免除。
+
+  - name: exempt-law-archive-sa-cmk
+    policy_assignment: Enforce-Encrypt-CMK0
+    management_group_suffix: platform
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — CMK 免除"
+    description: >-
+      Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。
+
+  # =========================================================================
+  # 2. ブートストラップリソース — IaC Compliance
+  # =========================================================================
+
+  - name: exempt-terraform-bootstrap-iac
+    policy_assignment: Assign-IaC-Compliance
+    management_group_suffix: platform
+    scope: ${terraform_state_rg_id}
+    category: Waiver
+    display_name: "rg-terraform-state — IaC Compliance 免除"
+    description: >-
+      Terraform state + GitHub Actions OIDC UAMI はブートストラップリソース
+      （鶏と卵問題）。Terraform 管理外だが正当なインフラ前提リソース。
+
+  # =========================================================================
+  # 3. MCSB / ASC ベンチマーク — Audit 非準拠の一括免除
+  # =========================================================================
+  #
+  # 判断理由:
+  #   カスタム RBAC ロール   — ALZ 設計に必要なロール定義
+  #   Defender for APIs     — Free tier はコスト判断
+  #   DDoS Protection       — DDoS Protection Plan 未契約（コスト）
+  #   NSG Flow Logs         — test-subscription のみ、将来対応
+  #   フェデレーション資格情報 — GitHub Actions OIDC は正当な発行者
+  #   Identity / Entra ID   — Entra ID Access Reviews で別途管理
+  #   Storage 関連          — 基盤 SA は上記 #1 で個別免除済み
+  #   LAW パブリックアクセス  — Sentinel 運用影響を確認後に対応
+  #   Saved Queries CMK     — CMK 未導入方針
+
+  - name: exempt-mcsb-audit-waivers
+    policy_assignment: Deploy-MCSB2-Monitoring
+    scope: ${root_management_group_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "MCSB Audit — レビュー済み許容項目"
+    description: >-
+      ALZ 設計上のカスタム RBAC ロール、コスト判断事項、Entra ID 管理事項、
+      基盤 SA 設定をまとめて免除。各項目はレビュー済み。
+    policy_definition_reference_ids:
+      - userbacrulesmonitoring
+      - enabledefenderforapis
+      - identitydesignatemorethanoneownermonitoring
+      - identitydesignatelessthanownersmonitoring
+      - identityremovedeprecatedaccountmonitoringnew
+      - identityremovedeprecatedaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithwritepermissionsmonitoringnew
+      - identityremoveexternalaccountwithreadpermissionsmonitoringnew
+      - flowlogsconfiguredeverynsggroup
+      - vnetenableddosprotectionmonitoring
+      - vnetsprotectedddos
+      - mifederatedcredentialsfromallowedissuertypes
+      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesmonitoringeffect
+      - storageaccountshoulduseaprivatelinkconnectionmonitoringeffect
+      - storageaccountsshouldpreventsharedkeyaccess
+      - storagesinfrastructureencryption
+      - storageaccountshoulduseaprivatelinkconnectionexdatabricksmonitoringeffect
+      - storageaccountsshouldpreventsharedkeyaccessexdatabricks
+      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesexdatabricksmonitoringeffect
+      - storagedisallowpublicaccess
+      - storagespublicaccess
+      - lawworkspacesblocklogingestionqueryingfrompublics
+      - savedqueriesmonitorsavedcustomerstoragelogsencryption
+
+  - name: exempt-asc-audit-waivers
+    policy_assignment: Deploy-ASC-Monitoring
+    scope: ${root_management_group_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "ASC Audit — レビュー済み許容項目"
+    description: >-
+      Deploy-MCSB2-Monitoring と重複する ASC 監視項目を免除。
+    policy_definition_reference_ids:
+      - userbacrulesmonitoring
+      - enabledefenderforapis
+      - identitydesignatemorethanoneownermonitoring
+      - identitydesignatelessthanownersmonitoring
+      - identityremovedeprecatedaccountmonitoringnew
+      - identityremovedeprecatedaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithownerpermissionsmonitoringnew
+      - identityremoveexternalaccountwithwritepermissionsmonitoringnew
+      - identityremoveexternalaccountwithreadpermissionsmonitoringnew
+      - vnetenableddosprotectionmonitoring
+      - storageaccountshoulduseaprivatelinkconnectionmonitoringeffect
+      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesmonitoringeffect
+      - storageaccountshoulduseaprivatelinkconnectionexdatabricksmonitoringeffect
+      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesexdatabricksmonitoringeffect
+      - storageaccountsshouldpreventsharedkeyaccess
+      - storageaccountsshouldpreventsharedkeyaccessexdatabricks
+      - storagedisallowpublicaccess
+
+  # =========================================================================
+  # 4. Audit ポリシー — 許容済み非準拠
+  # =========================================================================
+
+  # Zone Resiliency: リソース再作成が必要、計画的メンテナンスとして将来実施予定
+  - name: exempt-zone-resiliency-connectivity
+    policy_assignment: Audit-ZoneResiliency
+    scope: ${connectivity_subscription_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "Zone Resiliency — Connectivity"
+    description: >-
+      Hub FW/ER Gateway/PIP のゾーン冗長化は再作成が必要。計画的メンテナンスとして将来実施予定。
+
+  - name: exempt-zone-resiliency-management
+    policy_assignment: Audit-ZoneResiliency
+    scope: ${management_subscription_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "Zone Resiliency — Management"
+    description: >-
+      LAW Archive SA は GRS（不変性ポリシーにより ZRS 変換不可）。
+      Terraform state SA は LRS（コスト理由）。
+
+  # 未使用 PIP: ER 接続有効化前の一時状態
+  - name: exempt-unused-pip-connectivity
+    policy_assignment: Audit-UnusedResources
+    scope: ${connectivity_subscription_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "未使用 PIP — ER Gateway 用"
+    description: >-
+      ER Gateway 用 PIP は ER 接続が有効化されれば使用される。connection_enabled = false の一時状態。
+
+  # RG Location 不一致: Azure が Network Watcher を自動作成する仕様
+  - name: exempt-rg-location-connectivity
+    policy_assignment: Audit-ResourceRGLocation
+    scope: ${connectivity_subscription_id}
+    management_group_suffix: ""
+    category: Waiver
+    display_name: "RG Location 不一致 — Network Watcher"
+    description: >-
+      Azure 自動作成の Network Watcher は RG と異なるリージョンに配置される仕様。
+
+  # =========================================================================
+  # 5. AMBA — DINE 修復待ち
+  # =========================================================================
+
+  - name: exempt-amba-notification
+    policy_assignment: Deploy-AMBA-Notification
+    scope: ${root_management_group_id}
+    management_group_suffix: ""
+    category: Mitigated
+    display_name: "AMBA Notification — RP 登録済み・修復待ち"
+    description: >-
+      Microsoft.AlertsManagement RP は登録済み。Policy Remediation で AlertProcessing Rule がデプロイされる。
+
+  - name: exempt-amba-management
+    policy_assignment: Deploy-AMBA-Management
+    scope: ${management_subscription_id}
+    management_group_suffix: management
+    category: Mitigated
+    display_name: "AMBA Management — Daily Cap アラート修復待ち"
+    description: >-
+      UAMI ロール割り当て追加済み (PR #94)。Policy Remediation で Daily Cap アラートがデプロイされる。
