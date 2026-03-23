@@ -124,6 +124,28 @@ exemptions:
       Deploy-MCSB2-Monitoring と重複する ASC ストレージポリシーについても
       同様にリソーススコープで免除。
 
+  # --- Terraform state SA: Zone Resiliency ---
+  - name: exempt-state-sa-zone-resilient
+    policy_assignment: Audit-ZoneResiliency
+    management_group_suffix: ""
+    scope: ${terraform_state_storage_account_id}
+    category: Waiver
+    display_name: "Terraform state SA — Zone Resiliency 免除"
+    description: >-
+      GRS（geo-redundant storage）で運用する設計判断。
+      ゾーン冗長（ZRS/GZRS）は不要。
+
+  # --- LAW Archive SA: Zone Resiliency ---
+  - name: exempt-law-archive-sa-zone-resilient
+    policy_assignment: Audit-ZoneResiliency
+    management_group_suffix: ""
+    scope: ${law_archive_sa_id}
+    category: Waiver
+    display_name: "LAW Archive SA — Zone Resiliency 免除"
+    description: >-
+      GRS（geo-redundant storage）で運用する設計判断。
+      ゾーン冗長（ZRS/GZRS）は不要。
+
   # =========================================================================
   # 2. ブートストラップリソース — IaC Compliance
   # =========================================================================
@@ -142,17 +164,18 @@ exemptions:
   # 3. MCSB / ASC ベンチマーク — 構造的に回避不可能な項目のみ免除
   # =========================================================================
   #
-  # 免除対象は Azure Policy では対処不可能な以下の 3 カテゴリに限定:
+  # 免除対象:
   #   カスタム RBAC ロール — ALZ 設計に必要なロール定義（構造的）
   #   Identity / Entra ID — Entra ID Access Reviews で別途管理（Azure Policy 管轄外）
   #   DDoS Protection     — DDoS Protection Plan 未契約（組織的コスト判断）
+  #   NSG Flow Logs       — test サブの NSG のみ対象。Hub 内 NSG は別途管理
+  #   MI フェデレーション  — GitHub Actions OIDC の正当な構成
+  #   LAW パブリックアクセス — VNet 統合未構成（運用簡素化の設計判断）
+  #   Saved Queries CMK   — Microsoft-managed keys で運用
+  #   Defender for APIs   — 廃止予定機能
   #
   # 以下は免除しない（将来のリソースで検出されるべき）:
-  #   Storage 関連        — 基盤 SA はリソーススコープで個別免除済み
-  #   NSG Flow Logs       — 将来の NSG に対して監査を有効にしておくべき
-  #   MI フェデレーション  — 将来の MI に対して監査を有効にしておくべき
-  #   LAW パブリックアクセス — 将来の LAW に対して監査を有効にしておくべき
-  #   Saved Queries CMK   — 将来の Saved Queries に対して監査を有効にしておくべき
+  #   Storage 関連 — 基盤 SA はリソーススコープで個別免除済み
 
   - name: exempt-mcsb-audit-waivers
     policy_assignment: Deploy-MCSB2-Monitoring
@@ -161,8 +184,8 @@ exemptions:
     category: Waiver
     display_name: "MCSB Audit — 構造的に回避不可能な項目"
     description: >-
-      ALZ 設計上のカスタム RBAC ロール、Entra ID 管理事項、組織的コスト判断項目を
-      reference ID 限定で免除。Storage・NSG 等は将来リソースの監査を維持するため免除しない。
+      ALZ 設計上のカスタム RBAC ロール、Entra ID 管理事項、組織的コスト判断項目、
+      および現環境で構造的に準拠不可能な項目を reference ID 限定で免除。
     policy_definition_reference_ids:
       # カスタム RBAC ロール — ALZ 設計上の構造的要件
       - userbacrulesmonitoring
@@ -177,6 +200,16 @@ exemptions:
       # DDoS Protection — 組織的コスト判断
       - vnetenableddosprotectionmonitoring
       - vnetsprotectedddos
+      # NSG Flow Logs — test サブの NSG のみ対象
+      - flowlogsconfiguredeverynsggroup
+      # MI フェデレーション — GitHub Actions OIDC の正当な構成
+      - mifederatedcredentialsfromallowedissuertypes
+      # LAW パブリックアクセス — VNet 統合未構成（運用簡素化）
+      - lawworkspacesblocklogingestionqueryingfrompublics
+      # Saved Queries CMK — Microsoft-managed keys で運用
+      - savedqueriesmonitorsavedcustomerstoragelogsencryption
+      # Defender for APIs — 廃止予定機能
+      - enabledefenderforapis
 
   - name: exempt-asc-audit-waivers
     policy_assignment: Deploy-ASC-Monitoring
@@ -200,3 +233,5 @@ exemptions:
       - identityremoveexternalaccountwithreadpermissionsmonitoringnew
       # DDoS Protection
       - vnetenableddosprotectionmonitoring
+      # Defender for APIs — 廃止予定機能
+      - enabledefenderforapis

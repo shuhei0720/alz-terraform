@@ -157,6 +157,7 @@ variable "hub_virtual_networks" {
     dns_resolver_outbound_subnet_prefix = optional(string)
     firewall_sku_tier                   = optional(string, "Standard")
     firewall_threat_intel_mode          = optional(string, "Deny")
+    gateway_sku                         = optional(string, "ErGw1AZ")
     express_route = optional(object({
       service_provider_name = optional(string, "Equinix")
       peering_location      = optional(string, "Tokyo")
