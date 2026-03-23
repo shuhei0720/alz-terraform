@@ -343,10 +343,3 @@ resource "azurerm_log_analytics_data_export_rule" "law_data_export" {
   table_names             = var.law_archive_export_tables
   enabled                 = true
 }
-
-# 移行用: 既存の Azure リソースを新しい azurerm リソースに取り込む
-# 初回 apply 成功後に削除可能（state に取り込み済みであれば no-op）
-import {
-  to = azurerm_log_analytics_data_export_rule.law_data_export[0]
-  id = "${azurerm_log_analytics_workspace.main.id}/dataExports/export-to-archive"
-}
