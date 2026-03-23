@@ -9,9 +9,13 @@
 # スコープ変数 (${var_name}) は policy-exemptions.tf の
 # exemption_scope_vars で実値に解決される。
 #
-# カテゴリ:
-#   Waiver    — 意図的に許容 (設計上の理由・コスト判断)
-#   Mitigated — 別手段で対処済み (DINE 修復待ち等)
+# 免除のスコープ指針:
+#   リソース / RG スコープ — 影響範囲が限定的で安全
+#   サブスクリプション / MG スコープ — 将来のリソースにも適用されるため原則禁止
+#   MG スコープ + reference ID 限定 — 構造的に回避不可能な項目のみ許容
+#
+# Audit ポリシーの非準拠は免除せず可視化する方針。
+# DINE 修復待ちは免除ではなく Policy Remediation で対応する。
 #
 # =============================================================================
 
@@ -23,6 +27,7 @@ exemptions:
   #
   # Terraform state SA と LAW Archive SA はどちらも基盤インフラ SA で、
   # ガードレール・CMK 強制の一部/全部を免除する必要がある。
+  # スコープはリソース ID に限定されており、将来のリソースに影響しない。
   #
   # Enforce-GR-Storage0 の policyDefinitionReferenceId 一覧:
   #   Deny-Storage-CopyScope, Deny-Storage-ServicesEncryption,
@@ -94,32 +99,37 @@ exemptions:
       （鶏と卵問題）。Terraform 管理外だが正当なインフラ前提リソース。
 
   # =========================================================================
-  # 3. MCSB / ASC ベンチマーク — Audit 非準拠の一括免除
+  # 3. MCSB / ASC ベンチマーク — 構造的に回避不可能な項目のみ免除
   # =========================================================================
   #
-  # 判断理由:
-  #   カスタム RBAC ロール   — ALZ 設計に必要なロール定義
-  #   Defender for APIs     — Free tier はコスト判断
-  #   DDoS Protection       — DDoS Protection Plan 未契約（コスト）
-  #   NSG Flow Logs         — test-subscription のみ、将来対応
-  #   フェデレーション資格情報 — GitHub Actions OIDC は正当な発行者
-  #   Identity / Entra ID   — Entra ID Access Reviews で別途管理
-  #   Storage 関連          — 基盤 SA は上記 #1 で個別免除済み
-  #   LAW パブリックアクセス  — Sentinel 運用影響を確認後に対応
-  #   Saved Queries CMK     — CMK 未導入方針
+  # 免除対象は Azure Policy では対処不可能な以下の 3 カテゴリに限定:
+  #   カスタム RBAC ロール — ALZ 設計に必要なロール定義（構造的）
+  #   Defender for APIs   — 組織的コスト判断
+  #   Identity / Entra ID — Entra ID Access Reviews で別途管理（Azure Policy 管轄外）
+  #   DDoS Protection     — DDoS Protection Plan 未契約（組織的コスト判断）
+  #
+  # 以下は免除しない（将来のリソースで検出されるべき）:
+  #   Storage 関連        — 基盤 SA はリソーススコープで個別免除済み
+  #   NSG Flow Logs       — 将来の NSG に対して監査を有効にしておくべき
+  #   MI フェデレーション  — 将来の MI に対して監査を有効にしておくべき
+  #   LAW パブリックアクセス — 将来の LAW に対して監査を有効にしておくべき
+  #   Saved Queries CMK   — 将来の Saved Queries に対して監査を有効にしておくべき
 
   - name: exempt-mcsb-audit-waivers
     policy_assignment: Deploy-MCSB2-Monitoring
     scope: ${root_management_group_id}
     management_group_suffix: ""
     category: Waiver
-    display_name: "MCSB Audit — レビュー済み許容項目"
+    display_name: "MCSB Audit — 構造的に回避不可能な項目"
     description: >-
-      ALZ 設計上のカスタム RBAC ロール、コスト判断事項、Entra ID 管理事項、
-      基盤 SA 設定をまとめて免除。各項目はレビュー済み。
+      ALZ 設計上のカスタム RBAC ロール、Entra ID 管理事項、組織的コスト判断項目を
+      reference ID 限定で免除。Storage・NSG 等は将来リソースの監査を維持するため免除しない。
     policy_definition_reference_ids:
+      # カスタム RBAC ロール — ALZ 設計上の構造的要件
       - userbacrulesmonitoring
+      # Defender for APIs — 組織的コスト判断
       - enabledefenderforapis
+      # Identity / Entra ID — Azure Policy では対処不可、Entra ID Access Reviews で管理
       - identitydesignatemorethanoneownermonitoring
       - identitydesignatelessthanownersmonitoring
       - identityremovedeprecatedaccountmonitoringnew
@@ -127,33 +137,25 @@ exemptions:
       - identityremoveexternalaccountwithownerpermissionsmonitoringnew
       - identityremoveexternalaccountwithwritepermissionsmonitoringnew
       - identityremoveexternalaccountwithreadpermissionsmonitoringnew
-      - flowlogsconfiguredeverynsggroup
+      # DDoS Protection — 組織的コスト判断
       - vnetenableddosprotectionmonitoring
       - vnetsprotectedddos
-      - mifederatedcredentialsfromallowedissuertypes
-      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesmonitoringeffect
-      - storageaccountshoulduseaprivatelinkconnectionmonitoringeffect
-      - storageaccountsshouldpreventsharedkeyaccess
-      - storagesinfrastructureencryption
-      - storageaccountshoulduseaprivatelinkconnectionexdatabricksmonitoringeffect
-      - storageaccountsshouldpreventsharedkeyaccessexdatabricks
-      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesexdatabricksmonitoringeffect
-      - storagedisallowpublicaccess
-      - storagespublicaccess
-      - lawworkspacesblocklogingestionqueryingfrompublics
-      - savedqueriesmonitorsavedcustomerstoragelogsencryption
 
   - name: exempt-asc-audit-waivers
     policy_assignment: Deploy-ASC-Monitoring
     scope: ${root_management_group_id}
     management_group_suffix: ""
     category: Waiver
-    display_name: "ASC Audit — レビュー済み許容項目"
+    display_name: "ASC Audit — 構造的に回避不可能な項目"
     description: >-
-      Deploy-MCSB2-Monitoring と重複する ASC 監視項目を免除。
+      Deploy-MCSB2-Monitoring と重複する ASC 監視項目のうち、
+      構造的に回避不可能な項目のみ reference ID 限定で免除。
     policy_definition_reference_ids:
+      # カスタム RBAC ロール
       - userbacrulesmonitoring
+      # Defender for APIs
       - enabledefenderforapis
+      # Identity / Entra ID
       - identitydesignatemorethanoneownermonitoring
       - identitydesignatelessthanownersmonitoring
       - identityremovedeprecatedaccountmonitoringnew
@@ -161,77 +163,5 @@ exemptions:
       - identityremoveexternalaccountwithownerpermissionsmonitoringnew
       - identityremoveexternalaccountwithwritepermissionsmonitoringnew
       - identityremoveexternalaccountwithreadpermissionsmonitoringnew
+      # DDoS Protection
       - vnetenableddosprotectionmonitoring
-      - storageaccountshoulduseaprivatelinkconnectionmonitoringeffect
-      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesmonitoringeffect
-      - storageaccountshoulduseaprivatelinkconnectionexdatabricksmonitoringeffect
-      - storageaccountsshouldrestrictnetworkaccessusingvirtualnetworkrulesexdatabricksmonitoringeffect
-      - storageaccountsshouldpreventsharedkeyaccess
-      - storageaccountsshouldpreventsharedkeyaccessexdatabricks
-      - storagedisallowpublicaccess
-
-  # =========================================================================
-  # 4. Audit ポリシー — 許容済み非準拠
-  # =========================================================================
-
-  # Zone Resiliency: リソース再作成が必要、計画的メンテナンスとして将来実施予定
-  - name: exempt-zone-resiliency-connectivity
-    policy_assignment: Audit-ZoneResiliency
-    scope: ${connectivity_subscription_id}
-    management_group_suffix: ""
-    category: Waiver
-    display_name: "Zone Resiliency — Connectivity"
-    description: >-
-      Hub FW/ER Gateway/PIP のゾーン冗長化は再作成が必要。計画的メンテナンスとして将来実施予定。
-
-  - name: exempt-zone-resiliency-management
-    policy_assignment: Audit-ZoneResiliency
-    scope: ${management_subscription_id}
-    management_group_suffix: ""
-    category: Waiver
-    display_name: "Zone Resiliency — Management"
-    description: >-
-      LAW Archive SA は GRS（不変性ポリシーにより ZRS 変換不可）。
-      Terraform state SA は LRS（コスト理由）。
-
-  # 未使用 PIP: ER 接続有効化前の一時状態
-  - name: exempt-unused-pip-connectivity
-    policy_assignment: Audit-UnusedResources
-    scope: ${connectivity_subscription_id}
-    management_group_suffix: ""
-    category: Waiver
-    display_name: "未使用 PIP — ER Gateway 用"
-    description: >-
-      ER Gateway 用 PIP は ER 接続が有効化されれば使用される。connection_enabled = false の一時状態。
-
-  # RG Location 不一致: Azure が Network Watcher を自動作成する仕様
-  - name: exempt-rg-location-connectivity
-    policy_assignment: Audit-ResourceRGLocation
-    scope: ${connectivity_subscription_id}
-    management_group_suffix: ""
-    category: Waiver
-    display_name: "RG Location 不一致 — Network Watcher"
-    description: >-
-      Azure 自動作成の Network Watcher は RG と異なるリージョンに配置される仕様。
-
-  # =========================================================================
-  # 5. AMBA — DINE 修復待ち
-  # =========================================================================
-
-  - name: exempt-amba-notification
-    policy_assignment: Deploy-AMBA-Notification
-    scope: ${root_management_group_id}
-    management_group_suffix: ""
-    category: Mitigated
-    display_name: "AMBA Notification — RP 登録済み・修復待ち"
-    description: >-
-      Microsoft.AlertsManagement RP は登録済み。Policy Remediation で AlertProcessing Rule がデプロイされる。
-
-  - name: exempt-amba-management
-    policy_assignment: Deploy-AMBA-Management
-    scope: ${management_subscription_id}
-    management_group_suffix: management
-    category: Mitigated
-    display_name: "AMBA Management — Daily Cap アラート修復待ち"
-    description: >-
-      UAMI ロール割り当て追加済み (PR #94)。Policy Remediation で Daily Cap アラートがデプロイされる。
