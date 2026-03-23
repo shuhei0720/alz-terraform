@@ -64,6 +64,16 @@ policy_exemptions:
     display_name: "テスト環境 — KeyVault ガードレール免除"
     description: "テスト環境のため KeyVault ガードレールを一時免除"
 
+  - name: "exempt-test-sub-subnet-private"
+    policy_assignment: "Enforce-Subnet-Private"
+    management_group_suffix: "landingzones"
+    scope: "/subscriptions/${subscription_id}/resourceGroups/rg-test-network/providers/Microsoft.Network/virtualNetworks/vnet-test"
+    category: "Waiver"
+    display_name: "test-subscription VNet — Subnet Private 免除"
+    description: >-
+      既存サブネットの defaultOutboundAccess は lifecycle ignore_changes により
+      Terraform で変更不可。新規サブネットは defaultOutboundAccess=false で準拠済み。
+
 # 以下はコメント例（必要に応じて有効化）
 #   - name: "exempt-test-sub-storage-gr"
 #     policy_assignment: "Enforce-GR-Storage0"

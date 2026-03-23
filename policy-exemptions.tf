@@ -33,6 +33,17 @@ locals {
   # 変数参照の解決マップ（YAML 内の ${var_name} → 実際の値）
   exemption_scope_vars = {
     terraform_state_storage_account_id = var.terraform_state_storage_account_id
+    terraform_state_rg_id = (
+      var.terraform_state_storage_account_id != ""
+      ? join("/", slice(split("/", var.terraform_state_storage_account_id), 0, 5))
+      : ""
+    )
+    law_archive_sa_id            = try(azurerm_storage_account.law_archive[0].id, "")
+    root_management_group_id     = "/providers/Microsoft.Management/managementGroups/${var.root_id}"
+    management_subscription_id   = "/subscriptions/${var.subscription_ids["management"]}"
+    connectivity_subscription_id = "/subscriptions/${var.subscription_ids["connectivity"]}"
+    identity_subscription_id     = "/subscriptions/${var.subscription_ids["identity"]}"
+    security_subscription_id     = "/subscriptions/${var.subscription_ids["security"]}"
   }
 
   # --- MG サフィックスの自動推定マップ ---
@@ -97,17 +108,10 @@ locals {
   }
 
   # --- 3. インフラ構成に基づく動的免除 ---
-  # YAML では表現できない Terraform リソース ID ベースの免除
-  _terraform_state_rg_scope = (
-    var.terraform_state_storage_account_id != ""
-    ? join("/", slice(split("/", var.terraform_state_storage_account_id), 0, 5))
-    : ""
-  )
-
+  # Hub VNet のみ HCL で管理（for_each が動的なため YAML では不可）
+  # その他は全て YAML に移行済み
   _infrastructure_exemptions = merge(
     # Hub VNet: Network ガードレール免除（特殊サブネット）
-    # AzureFirewallSubnet / GatewaySubnet / AzureBastionSubnet / DNS Resolver は
-    # 設計上 NSG/UDR を付与できない or 非推奨
     {
       for hub_key in keys(var.hub_virtual_networks) :
       "exempt-hub-${hub_key}-network-gr" => {
@@ -122,7 +126,6 @@ locals {
       }
     },
     # Hub VNet: Subnet Private (defaultOutboundAccess) 免除
-    # 特殊サブネットは専用のアウトバウンド経路を持つ (Firewall PIP / Gateway / Bastion PIP)
     {
       for hub_key in keys(var.hub_virtual_networks) :
       "exempt-hub-${hub_key}-subnet-private" => {
@@ -136,47 +139,6 @@ locals {
         policy_definition_reference_ids = null
       }
     },
-    # LAW Archive SA: Storage ガードレール免除
-    # 不変性ポリシー付き専用 SA のため一部設定変更不可
-    var.law_archive_retention_days > 0 ? {
-      "exempt-law-archive-sa-storage-gr" = {
-        name                            = "exempt-law-archive-sa-storage-gr"
-        policy_assignment               = "Enforce-GR-Storage0"
-        management_group_suffix         = "platform"
-        resolved_scope                  = azurerm_storage_account.law_archive[0].id
-        category                        = "Waiver"
-        display_name                    = "LAW Archive SA — Storage ガードレール免除"
-        description                     = "LAW アーカイブは不変性ポリシー付き専用 SA。インフラ暗号化等の作成後変更不可設定があるためガードレール全体を免除"
-        policy_definition_reference_ids = null
-      }
-    } : {},
-    # LAW Archive SA: CMK 免除
-    var.law_archive_retention_days > 0 ? {
-      "exempt-law-archive-sa-cmk" = {
-        name                            = "exempt-law-archive-sa-cmk"
-        policy_assignment               = "Enforce-Encrypt-CMK0"
-        management_group_suffix         = "platform"
-        resolved_scope                  = azurerm_storage_account.law_archive[0].id
-        category                        = "Waiver"
-        display_name                    = "LAW Archive SA — CMK 免除"
-        description                     = "CMK はコスト・運用複雑性のトレードオフにより見送り。Microsoft-managed keys で運用"
-        policy_definition_reference_ids = null
-      }
-    } : {},
-    # IaC Compliance: ブートストラップリソース免除
-    # rg-terraform-state は Terraform 実行の前提条件（鶏と卵問題）で Terraform 管理外
-    local._terraform_state_rg_scope != "" ? {
-      "exempt-terraform-bootstrap-iac" = {
-        name                            = "exempt-terraform-bootstrap-iac"
-        policy_assignment               = "Assign-IaC-Compliance"
-        management_group_suffix         = "platform"
-        resolved_scope                  = local._terraform_state_rg_scope
-        category                        = "Waiver"
-        display_name                    = "rg-terraform-state — IaC Compliance 免除"
-        description                     = "Terraform state backend と GitHub Actions OIDC の UAMI はブートストラップリソース。Terraform 管理外だが正当なインフラ前提リソース"
-        policy_definition_reference_ids = null
-      }
-    } : {},
   )
 
   # --- 統合: グローバル + サブスクリプション + インフラ動的免除 ---
@@ -195,7 +157,7 @@ resource "azapi_resource" "policy_exemptions" {
 
   body = {
     properties = {
-      policyAssignmentId           = azapi_resource.alz_policy_assignments["${var.root_id}-${each.value.management_group_suffix}/${each.value.policy_assignment}"].id
+      policyAssignmentId           = azapi_resource.alz_policy_assignments["${join("-", compact([var.root_id, each.value.management_group_suffix]))}/${each.value.policy_assignment}"].id
       exemptionCategory            = each.value.category
       displayName                  = each.value.display_name
       description                  = try(each.value.description, null)
@@ -215,6 +177,59 @@ resource "azapi_resource" "policy_exemptions" {
   depends_on = [
     azapi_resource.alz_policy_assignments,
     # サブスクリプションが MG 配下に配置されてから免除を作成する
+    azurerm_management_group_subscription_association.management,
+    azurerm_management_group_subscription_association.connectivity,
+    azurerm_management_group_subscription_association.identity,
+    azurerm_management_group_subscription_association.security,
+    azurerm_management_group_subscription_association.vending,
+    azurerm_management_group_subscription_association.vending_existing,
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# SecurityCenterBuiltIn 免除（Azure 自動割り当て — ALZ 管理外）
+# ---------------------------------------------------------------------------
+#
+# Defender for Cloud がサブスクリプション登録時に自動作成する
+# SecurityCenterBuiltIn は MG レベルの Deploy-MCSB2-Monitoring /
+# Deploy-ASC-Monitoring と完全に重複するため、全サブスクリプションで免除する。
+#
+# ALZ の alz_policy_assignments には含まれないため、
+# policyAssignmentId を直接構築して別リソースで管理する。
+# ---------------------------------------------------------------------------
+
+locals {
+  _all_subscription_ids = merge(
+    var.subscription_ids,
+    { for k, v in local.resolved_subscription_ids : k => v if v != "" }
+  )
+}
+
+resource "azapi_resource" "securitycenter_exemptions" {
+  for_each = local._all_subscription_ids
+
+  type      = "Microsoft.Authorization/policyExemptions@2022-07-01-preview"
+  name      = "exempt-securitycenterbuiltin-${each.key}"
+  parent_id = "/subscriptions/${each.value}"
+
+  body = {
+    properties = {
+      policyAssignmentId = "/subscriptions/${each.value}/providers/Microsoft.Authorization/policyAssignments/SecurityCenterBuiltIn"
+      exemptionCategory  = "Waiver"
+      displayName        = "SecurityCenterBuiltIn — MG レベル MCSB と重複"
+      description        = "MG レベルの Deploy-MCSB2-Monitoring / Deploy-ASC-Monitoring と完全重複するため免除"
+    }
+  }
+
+  response_export_values = []
+
+  retry = {
+    error_message_regex  = ["not at or under", "InvalidCreatePolicyExemptionRequest", "PolicyAssignmentNotFound"]
+    interval_seconds     = 30
+    max_interval_seconds = 300
+  }
+
+  depends_on = [
     azurerm_management_group_subscription_association.management,
     azurerm_management_group_subscription_association.connectivity,
     azurerm_management_group_subscription_association.identity,
