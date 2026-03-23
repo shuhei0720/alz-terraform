@@ -108,6 +108,37 @@ data "alz_architecture" "this" {
     })
 
     # =========================================================================
+    # ALZ: DDoS Protection
+    # =========================================================================
+    # DDoS Protection Plan は高コストのため DoNotEnforce にしている場合でも
+    # ダミー値の設定が必要（未設定だとプロバイダーエラー）
+    ddos_protection_plan_id = jsonencode({
+      value = "/subscriptions/${var.subscription_ids["connectivity"]}/resourceGroups/rg-ddos-${var.primary_location}/providers/Microsoft.Network/ddosProtectionPlans/ddos-${var.primary_location}"
+    })
+
+    # =========================================================================
+    # ALZ: MDFC (Microsoft Defender for Cloud)
+    # =========================================================================
+    email_security_contact = jsonencode({
+      value = length(var.amba_alert_email) > 0 ? var.amba_alert_email[0] : "security@example.com"
+    })
+
+    resource_group_name_mdfc = jsonencode({
+      value = "rg-mdfc-export-${var.primary_location}"
+    })
+
+    # =========================================================================
+    # ALZ: Resource Group Location / Service Health
+    # =========================================================================
+    resource_group_location = jsonencode({
+      value = var.primary_location
+    })
+
+    resource_group_name_service_health_alerts = jsonencode({
+      value = "rg-service-health-alerts-${var.primary_location}"
+    })
+
+    # =========================================================================
     # AMBA: Core settings
     # =========================================================================
     amba_alz_management_subscription_id = jsonencode({
@@ -161,6 +192,34 @@ data "alz_architecture" "this" {
         webhookServiceUri   = []
       }
     })
+  }
+
+  # ===========================================================================
+  # Defender for Cloud 全プラン有効化
+  # ===========================================================================
+  # ALZ ライブラリのデフォルトでは Deploy-MDFC-Config-H224 の全プランが
+  # "Disabled" のため、ここで DeployIfNotExists にオーバーライドします。
+  policy_assignments_to_modify = {
+    (var.root_id) = {
+      policy_assignments = {
+        Deploy-MDFC-Config-H224 = {
+          parameters = {
+            enableAscForServers                         = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForServersVulnerabilityAssessments = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForSql                             = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForAppServices                     = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForStorage                         = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForContainers                      = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForKeyVault                        = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForSqlOnVm                         = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForArm                             = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForOssDb                           = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForCosmosDbs                       = jsonencode({ value = "DeployIfNotExists" })
+            enableAscForCspm                            = jsonencode({ value = "DeployIfNotExists" })
+          }
+        }
+      }
+    }
   }
 }
 

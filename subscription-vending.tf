@@ -434,7 +434,9 @@ resource "azapi_resource" "vending_spoke_to_hub" {
   }
 
   # use_hub_gateway=true の場合、ER Gateway 完成後でないとピアリング不可
-  depends_on = [azurerm_virtual_network_gateway.er]
+  # サブネット作成と同時にピアリングすると VNet 書き込みロック競合が発生するため
+  # サブネット完了後にピアリングを開始する
+  depends_on = [azurerm_virtual_network_gateway.er, azapi_resource.vending_subnets]
 }
 
 # =============================================================================
@@ -464,6 +466,10 @@ resource "azapi_resource" "vending_hub_to_spoke" {
     interval_seconds     = 30
     max_interval_seconds = 300
   }
+
+  # サブネット作成と同時にピアリングすると VNet 書き込みロック競合が発生するため
+  # サブネット完了後にピアリングを開始する
+  depends_on = [azapi_resource.vending_subnets]
 }
 
 # =============================================================================

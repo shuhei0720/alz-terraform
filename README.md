@@ -711,6 +711,264 @@ policy_default_values = {
 
 これにより、数百のポリシー割り当てに個別に LAW ID を設定する必要がなくなります。
 
+#### policy_default_values 一覧
+
+ALZ / AMBA の全ポリシーライブラリで定義されているデフォルト値キーの一覧です。
+すべて `policy.tf` の `policy_default_values` ブロックで設定しています。
+
+##### ALZ ライブラリ（14 キー）
+
+| # | キー名 | 用途 | 関連ポリシー割り当て |
+|---|--------|------|----------------------|
+| 1 | `log_analytics_workspace_id` | 中央 LAW のリソース ID | Deploy-AzActivity-Log, Deploy-AzSqlDb-Auditing, Deploy-Diag-LogsCat, Deploy-MDFC-Config-H224, Deploy-MDFC-DefSQL-AMA |
+| 2 | `ama_user_assigned_managed_identity_id` | AMA 用 UAMI のリソース ID | Deploy-MDFC-DefSQL-AMA, Deploy-VM-ChangeTrack, Deploy-VM-Monitoring, Deploy-VMSS-ChangeTrack, Deploy-VMSS-Monitoring |
+| 3 | `ama_user_assigned_managed_identity_name` | AMA 用 UAMI の名前（削除保護用） | DenyAction-DeleteUAMIAMA |
+| 4 | `ama_vm_insights_data_collection_rule_id` | VM Insights 用 DCR ID | Deploy-VM-Monitoring, Deploy-VMSS-Monitoring, Deploy-vmHybr-Monitoring |
+| 5 | `ama_change_tracking_data_collection_rule_id` | 変更追跡用 DCR ID | Deploy-VM-ChangeTrack, Deploy-VMSS-ChangeTrack, Deploy-vmArc-ChangeTrack |
+| 6 | `ama_mdfc_sql_data_collection_rule_id` | Defender for SQL 用 DCR ID | Deploy-MDFC-DefSQL-AMA |
+| 7 | `private_dns_zone_subscription_id` | Private DNS ゾーンのサブスクリプション ID | Deploy-Private-DNS-Zones |
+| 8 | `private_dns_zone_resource_group_name` | Private DNS ゾーンの RG 名 | Deploy-Private-DNS-Zones |
+| 9 | `private_dns_zone_region` | Private DNS ゾーンのリージョン | Deploy-Private-DNS-Zones |
+| 10 | `ddos_protection_plan_id` | DDoS Protection Plan ID（DoNotEnforce でもダミー値が必要） | Enable-DDoS-VNET |
+| 11 | `email_security_contact` | MDFC セキュリティ連絡先メール | Deploy-MDFC-Config-H224 |
+| 12 | `resource_group_location` | RG のデフォルトリージョン | Deploy-MDFC-Config-H224, Deploy-SvcHealth-BuiltIn |
+| 13 | `resource_group_name_mdfc` | MDFC エクスポート用 RG 名 | Deploy-MDFC-Config-H224 |
+| 14 | `resource_group_name_service_health_alerts` | Service Health アラート用 RG 名 | Deploy-SvcHealth-BuiltIn |
+
+##### AMBA ライブラリ（19 キー）
+
+| # | キー名 | 用途 | 関連ポリシー割り当て |
+|---|--------|------|----------------------|
+| 1 | `amba_alz_management_subscription_id` | Management サブスクリプション ID | Deploy-AMBA-HybridVM, Deploy-AMBA-Management, Deploy-AMBA-VM, Deploy-AMBA-Web |
+| 2 | `amba_alz_resource_group_name` | AMBA アラート用 RG 名 | Deploy-AMBA-* 全般 |
+| 3 | `amba_alz_resource_group_location` | AMBA アラート用 RG リージョン | Deploy-AMBA-* 全般 |
+| 4 | `amba_alz_resource_group_tags` | AMBA アラート用 RG タグ | Deploy-AMBA-* 全般 |
+| 5 | `amba_alz_action_group_email` | アラート通知先メール | Deploy-AMBA-Notification |
+| 6 | `amba_alz_user_assigned_managed_identity_name` | AMBA 用 UAMI 名 | Deploy-AMBA-HybridVM, Deploy-AMBA-Management, Deploy-AMBA-VM, Deploy-AMBA-Web |
+| 7 | `amba_alz_byo_user_assigned_managed_identity_id` | 持ち込み UAMI ID（空 = 自動作成） | Deploy-AMBA-* 全般 |
+| 8 | `amba_alz_byo_action_group` | 持ち込み Action Group（空 = 自動作成） | Deploy-AMBA-Notification |
+| 9 | `amba_alz_byo_alert_processing_rule` | 持ち込み Alert Processing Rule | Deploy-AMBA-Notification |
+| 10 | `amba_alz_disable_tag_name` | 監視無効化タグ名 | Deploy-AMBA-* 全般, Deploy-AMBAConnectivity2 |
+| 11 | `amba_alz_disable_tag_values` | 監視無効化タグ値リスト | Deploy-AMBA-* 全般, Deploy-AMBAConnectivity2 |
+| 12 | `amba_alz_arm_role_id` | ARM ロール ID（通知用） | Deploy-AMBA-Notification |
+| 13 | `amba_alz_webhook_service_uri` | Webhook 通知 URI | Deploy-AMBA-Notification |
+| 14 | `amba_alz_event_hub_resource_id` | Event Hub リソース ID | Deploy-AMBA-Notification |
+| 15 | `amba_alz_function_resource_id` | Azure Function リソース ID | Deploy-AMBA-Notification |
+| 16 | `amba_alz_function_trigger_url` | Azure Function トリガー URL | Deploy-AMBA-Notification |
+| 17 | `amba_alz_logicapp_resource_id` | Logic App リソース ID | Deploy-AMBA-Notification |
+| 18 | `amba_alz_logicapp_callback_url` | Logic App コールバック URL | Deploy-AMBA-Notification |
+| 19 | `amba_alz_sha_action_group_resources` | Service Health 用 Action Group 設定 | Deploy-AMBA-Res-SvcHlth |
+
+### 管理グループ別ポリシー割り当て一覧
+
+以下は、各管理グループに**実際に割り当てられている**ポリシーの一覧です。
+ALZ + AMBA + カスタム（`lib/archetype_definitions/`）の 3 層を合成した最終結果を示します。
+
+> **凡例**: 🔧 DINE（DeployIfNotExists）= 自動是正 / 🔍 Audit = 監査のみ / 🚫 Deny = 拒否 / 🛡️ Modify = 自動修正
+>
+> ⚠️ **DoNotEnforce** と記載のあるポリシーは、割り当て済みだが `enforcementMode: DoNotEnforce` で展開されています。
+> 準拠状況は評価されますが、実際の Deny/DINE 効果は発動しません（監査モード相当）。
+> 有効化するには `policy_assignments_to_modify` で `enforcement_mode = "Default"` に変更してください。
+
+#### Root（ルート管理グループ — 全サブスクリプションに継承）
+
+Root には基盤全体のセキュリティ・監視ポリシーが集約されています。配下のすべての管理グループ・サブスクリプションに継承されます。
+
+**ALZ ポリシー割り当て（17 個）:**
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Audit-ResourceRGLocation | 🔍 Audit | リソースとリソースグループのリージョン一致を監査 |
+| Audit-TrustedLaunch | 🔍 Audit | VM のトラステッド起動対応を監査 |
+| Audit-UnusedResources | 🔍 Audit | 未使用リソース（未接続ディスク、空 AG 等）を監査 |
+| Audit-ZoneResiliency | 🔍 Audit | 可用性ゾーン対応を監査 |
+| Deny-Classic-Resources | 🚫 Deny | クラシック（ASM）リソースの作成を拒否 |
+| Deny-UnmanagedDisk | 🚫 Deny | 非マネージドディスクの使用を拒否 |
+| Deploy-ASC-Monitoring | 🔧 DINE | Azure Security Center の監視設定を自動デプロイ |
+| Deploy-AzActivity-Log | 🔧 DINE | Azure Activity Log の LAW 転送を自動設定 |
+| Deploy-Diag-LogsCat | 🔧 DINE | リソース診断ログの LAW 転送を自動設定 |
+| Deploy-MCSB2-Monitoring | 🔧 DINE | Microsoft Cloud Security Benchmark v2 監視を自動設定 |
+| Deploy-MDEndpoints | 🔧 DINE | Microsoft Defender for Endpoint の自動プロビジョニング |
+| Deploy-MDEndpointsAMA | 🔧 DINE | AMA ベースの Defender for Endpoint 自動プロビジョニング |
+| Deploy-MDFC-Config-H224 | 🔧 DINE | **Defender for Cloud 全プラン構成** — ALZ ライブラリのデフォルトは `Disabled` だが、`policy_assignments_to_modify` で全 12 プランを `DeployIfNotExists` にオーバーライド済み |
+| Deploy-MDFC-OssDb | 🔧 DINE | Defender for Open-Source Relational DB を自動有効化 |
+| Deploy-MDFC-SqlAtp | 🔧 DINE | Defender for SQL Advanced Threat Protection を自動有効化 |
+| Deploy-SvcHealth-BuiltIn | 🔧 DINE | Service Health アラートの自動構成 |
+| Enforce-ACSB | 🚫 Deny | Azure Compute Security Baseline の強制 |
+
+**AMBA ポリシー割り当て（2 個）:**
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Deploy-AMBA-Notification | 🔧 DINE | AMBA アラート通知（Action Group, Alert Processing Rule）の自動構成 |
+| Deploy-AMBA-Res-SvcHlth | 🔧 DINE | Service Health リソースアラートの自動構成 |
+
+**カスタムポリシー定義（Root に追加）:**
+
+| リソース | 種別 | 説明 |
+|:---|:---|:---|
+| Audit-Non-Terraform-Resources | Policy Definition | Terraform 管理外リソースの検出（IaC 準拠監査） |
+| IaC-Compliance-Initiative | Policy Set Definition | IaC 準拠イニシアティブ（上記定義を含む） |
+
+#### Platform（Management / Connectivity / Identity / Security に継承）
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| DenyAction-DeleteUAMIAMA | 🚫 DenyAction | AMA 用 UAMI の誤削除を防止 |
+| Deploy-GuestAttest | 🔧 DINE | ゲスト構成証明の自動デプロイ |
+| Deploy-MDFC-DefSQL-AMA | 🔧 DINE | Defender for SQL (AMA ベース) の自動構成 |
+| Deploy-VM-ChangeTrack | 🔧 DINE | VM 変更追跡の自動デプロイ |
+| Deploy-VM-Monitoring | 🔧 DINE | VM 監視（VM Insights）の自動デプロイ |
+| Deploy-VMSS-ChangeTrack | 🔧 DINE | VMSS 変更追跡の自動デプロイ |
+| Deploy-VMSS-Monitoring | 🔧 DINE | VMSS 監視の自動デプロイ |
+| Deploy-vmArc-ChangeTrack | 🔧 DINE | Arc VM 変更追跡の自動デプロイ |
+| Deploy-vmHybr-Monitoring | 🔧 DINE | Hybrid VM 監視の自動デプロイ |
+| Enable-AUM-CheckUpdates | 🔧 DINE | Azure Update Manager の更新チェック自動有効化 |
+| Enforce-ASR | 🔧 DINE | Azure Site Recovery の強制 |
+| Enforce-Encrypt-CMK0 | � Audit（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 監査モードで展開（enforcementMode=DoNotEnforce） |
+| Enforce-GR-APIM0 〜 VirtualDesk0（20 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce で展開。有効化するには `policy_assignments_to_modify` で enforcementMode を `Default` に変更が必要 |
+| Enforce-Subnet-Private | 🔍 Audit（**DoNotEnforce**） | サブネットのデフォルト送信アクセス — effect=Audit かつ DoNotEnforce |
+| **Assign-IaC-Compliance** | 🔍 Audit | **[カスタム]** IaC 準拠イニシアティブの割り当て |
+
+#### Connectivity
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| ~~Enable-DDoS-VNET~~ | ~~🛡️ Modify~~ | ~~DDoS Protection Plan の自動割り当て~~ **※ カスタムで削除済み（高コスト）** |
+
+**AMBA ポリシー割り当て（2 個）:**
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Deploy-AMBA-Connectivity | 🔧 DINE | ネットワーク接続性アラートの自動構成（VPN GW, ER, Firewall 等） |
+| Deploy-AMBAConnectivity2 | 🔧 DINE | ネットワーク接続性アラート第 2 弾（追加メトリクス） |
+
+#### Identity
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Deny-MgmtPorts-Internet | 🚫 Deny | 管理ポート（RDP/SSH）のインターネット公開を拒否 |
+| Deny-Public-IP | 🚫 Deny | パブリック IP の作成を拒否 |
+| Deny-Subnet-Without-Nsg | 🚫 Deny | NSG なしサブネットの作成を拒否 |
+| Deploy-VM-Backup | 🔧 DINE | VM バックアップの自動デプロイ |
+
+**AMBA ポリシー割り当て（1 個）:**
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Deploy-AMBA-Identity | 🔧 DINE | ID 関連リソースアラートの自動構成 |
+
+#### Management
+
+ALZ 標準の追加ポリシーなし（Root + Platform から継承）。
+
+**AMBA ポリシー割り当て（1 個）:**
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Deploy-AMBA-Management | 🔧 DINE | 管理リソースアラートの自動構成（LAW, Automation 等） |
+
+#### Security
+
+ALZ 標準の追加ポリシーなし（Root + Platform から継承）。
+
+#### Landing Zones（Corp / Online に継承）
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Audit-AppGW-WAF | 🔍 Audit | Application Gateway の WAF 有効化を監査 |
+| Deny-IP-forwarding | 🚫 Deny | NIC の IP フォワーディングを拒否 |
+| Deny-MgmtPorts-Internet | 🚫 Deny | 管理ポートのインターネット公開を拒否 |
+| Deny-Priv-Esc-AKS | 🚫 Deny | AKS コンテナの特権エスカレーションを拒否 |
+| Deny-Privileged-AKS | 🚫 Deny | AKS の特権コンテナ実行を拒否 |
+| Deny-Storage-http | 🚫 Deny | Storage への非 HTTPS アクセスを拒否 |
+| Deny-Subnet-Without-Nsg | 🚫 Deny | NSG なしサブネットの作成を拒否 |
+| Deploy-AzSqlDb-Auditing | 🔧 DINE | Azure SQL DB の監査を自動有効化 |
+| Deploy-GuestAttest | 🔧 DINE | ゲスト構成証明の自動デプロイ |
+| Deploy-MDFC-DefSQL-AMA | 🔧 DINE | Defender for SQL (AMA) の自動構成 |
+| Deploy-SQL-TDE | 🔧 DINE | SQL Transparent Data Encryption の自動有効化 |
+| Deploy-SQL-Threat | 🔧 DINE | SQL 脅威検出の自動有効化 |
+| Deploy-VM-Backup | 🔧 DINE | VM バックアップの自動デプロイ |
+| Deploy-VM-ChangeTrack | 🔧 DINE | VM 変更追跡の自動デプロイ |
+| Deploy-VM-Monitoring | 🔧 DINE | VM 監視の自動デプロイ |
+| Deploy-VMSS-ChangeTrack | 🔧 DINE | VMSS 変更追跡の自動デプロイ |
+| Deploy-VMSS-Monitoring | 🔧 DINE | VMSS 監視の自動デプロイ |
+| Deploy-vmArc-ChangeTrack | 🔧 DINE | Arc VM 変更追跡の自動デプロイ |
+| Deploy-vmHybr-Monitoring | 🔧 DINE | Hybrid VM 監視の自動デプロイ |
+| Enable-AUM-CheckUpdates | 🔧 DINE | Azure Update Manager の更新チェック自動有効化 |
+| ~~Enable-DDoS-VNET~~ | ~~🛡️ Modify~~ | ~~DDoS Protection Plan の自動割り当て~~ **※ カスタムで削除済み（高コスト）** |
+| Enforce-AKS-HTTPS | 🚫 Deny | AKS の HTTPS イングレス強制 |
+| Enforce-ASR | 🔧 DINE | Azure Site Recovery の強制 |
+| Enforce-Encrypt-CMK0 | � Audit（**DoNotEnforce**） | カスタマーマネージドキー暗号化 — 監査モードで展開 |
+| Enforce-GR-APIM0 〜 VirtualDesk0（20 個） | 🔍 Audit（**DoNotEnforce**） | 各サービスのガードレール — 全て enforcementMode=DoNotEnforce |
+| Enforce-Subnet-Private | 🔍 Audit（**DoNotEnforce**） | サブネットのデフォルト送信アクセス — effect=Audit かつ DoNotEnforce |
+| Enforce-TLS-SSL-Q225 | 🚫 Deny | TLS/SSL の最小バージョン強制 |
+
+**AMBA ポリシー割り当て（8 個）:**
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Deploy-AMBA-HybridVM | 🔧 DINE | Hybrid VM アラートの自動構成 |
+| Deploy-AMBA-KeyMgmt | 🔧 DINE | Key Vault アラートの自動構成 |
+| Deploy-AMBA-LoadBalance | 🔧 DINE | Load Balancer アラートの自動構成 |
+| Deploy-AMBA-NetworkChang | 🔧 DINE | ネットワーク変更アラートの自動構成 |
+| Deploy-AMBA-RecoverySvc | 🔧 DINE | Recovery Services アラートの自動構成 |
+| Deploy-AMBA-Storage | 🔧 DINE | Storage アラートの自動構成 |
+| Deploy-AMBA-VM | 🔧 DINE | VM アラートの自動構成 |
+| Deploy-AMBA-Web | 🔧 DINE | Web App アラートの自動構成 |
+
+#### Corp
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Audit-PeDnsZones | 🔍 Audit | Private Endpoint の DNS ゾーン設定を監査 |
+| Deny-HybridNetworking | 🚫 Deny | ハイブリッドネットワーク（VPN GW 等）の作成を拒否 |
+| Deny-Public-Endpoints | 🚫 Deny | PaaS のパブリックエンドポイントを拒否 |
+| Deny-Public-IP-On-NIC | 🚫 Deny | NIC へのパブリック IP 割り当てを拒否 |
+| Deploy-Private-DNS-Zones | 🔧 DINE | Private Endpoint 用 DNS ゾーンの自動構成 |
+
+#### Online
+
+ALZ 標準の追加ポリシーなし（Root + Landing Zones から継承）。
+
+#### Decommissioned
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Enforce-ALZ-Decomm | 🚫 Deny | 廃止サブスクリプションでの全リソース作成を拒否 |
+
+#### Sandbox
+
+| ポリシー名 | 効果 | 説明 |
+|:---|:---|:---|
+| Enforce-ALZ-Sandbox | 🚫 Deny | サンドボックスでの本番相当のリソース作成を拒否 |
+
+### MDFC Defender プラン構成
+
+`Deploy-MDFC-Config-H224` ポリシー割り当ては、**Deploy-MDFC-Config** イニシアティブ（ポリシーセット定義）を使用して、Microsoft Defender for Cloud の全プランを一括構成します。
+
+以下の Defender プランが含まれます:
+
+ALZ ライブラリのデフォルトでは全プランが `Disabled` ですが、本リポジトリでは `policy.tf` の `policy_assignments_to_modify` で**全 12 プランを `DeployIfNotExists` にオーバーライド**しています。
+
+| # | Defender プラン | パラメータ名 | 設定値 | 保護対象 |
+|---|:---|:---|:---|:---|
+| 1 | Defender for Servers | `enableAscForServers` | ✅ DeployIfNotExists | 仮想マシン（Windows/Linux） |
+| 2 | Defender for Servers VA | `enableAscForServersVulnerabilityAssessments` | ✅ DeployIfNotExists | 脆弱性評価 |
+| 3 | Defender for App Service | `enableAscForAppServices` | ✅ DeployIfNotExists | App Service / Functions |
+| 4 | Defender for Azure SQL | `enableAscForSql` | ✅ DeployIfNotExists | Azure SQL Database |
+| 5 | Defender for SQL on VMs | `enableAscForSqlOnVm` | ✅ DeployIfNotExists | SQL Server on VMs / Arc |
+| 6 | Defender for Open-Source DB | `enableAscForOssDb` | ✅ DeployIfNotExists | PostgreSQL, MySQL, MariaDB |
+| 7 | Defender for Cosmos DB | `enableAscForCosmosDbs` | ✅ DeployIfNotExists | Azure Cosmos DB |
+| 8 | Defender for Storage | `enableAscForStorage` | ✅ DeployIfNotExists | Storage Account |
+| 9 | Defender for Containers | `enableAscForContainers` | ✅ DeployIfNotExists | AKS / Kubernetes |
+| 10 | Defender for Key Vault | `enableAscForKeyVault` | ✅ DeployIfNotExists | Key Vault |
+| 11 | Defender for ARM | `enableAscForArm` | ✅ DeployIfNotExists | ARM 操作 |
+| 12 | Defender CSPM | `enableAscForCspm` | ✅ DeployIfNotExists | Cloud Security Posture Management |
+
+> **注**: ALZ ライブラリのデフォルトは `Disabled` です。個別に無効化したい場合は
+> `policy.tf` の `policy_assignments_to_modify` から該当パラメータを削除してください。
+
 ---
 
 ## サブスクリプション自動払い出し（Vending）
