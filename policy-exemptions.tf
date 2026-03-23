@@ -203,10 +203,18 @@ locals {
     var.subscription_ids,
     { for k, v in local.resolved_subscription_ids : k => v if v != "" }
   )
+
+  # SecurityCenterBuiltIn は Defender for Cloud がサブスクリプション登録時に
+  # 自動作成するが、management サブスクリプションには割り当てが存在しない。
+  # 割り当てが存在しないサブスクに免除を作成するとエラーになるため除外する。
+  _securitycenter_subscription_ids = {
+    for k, v in local._all_subscription_ids : k => v
+    if k != "management"
+  }
 }
 
 resource "azapi_resource" "securitycenter_exemptions" {
-  for_each = local._all_subscription_ids
+  for_each = local._securitycenter_subscription_ids
 
   type      = "Microsoft.Authorization/policyExemptions@2022-07-01-preview"
   name      = "exempt-securitycenterbuiltin-${each.key}"
@@ -224,7 +232,7 @@ resource "azapi_resource" "securitycenter_exemptions" {
   response_export_values = []
 
   retry = {
-    error_message_regex  = ["not at or under", "InvalidCreatePolicyExemptionRequest", "PolicyAssignmentNotFound"]
+    error_message_regex  = ["not at or under", "InvalidCreatePolicyExemptionRequest"]
     interval_seconds     = 30
     max_interval_seconds = 300
   }
