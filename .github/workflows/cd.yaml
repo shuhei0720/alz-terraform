@@ -230,18 +230,14 @@ jobs:
 
       - name: Pre-Destroy Cleanup
         env:
-          NC_FILTER_PY: |
+          BLOB_LIST_PY: |
             import json, sys, urllib.parse
             for b in json.load(sys.stdin):
-                if b.get('isCurrentVersion') != True and b.get('versionId'):
-                    vid = urllib.parse.quote(b['versionId'], safe='')
-                    name = urllib.parse.quote(b['name'], safe='/')
-                    print(f'{vid}\t{name}')
-          CUR_FILTER_PY: |
-            import json, sys, urllib.parse
-            for b in json.load(sys.stdin):
-                if b.get('isCurrentVersion') == True:
-                    print(urllib.parse.quote(b['name'], safe='/'))
+                vid = b.get('versionId', '')
+                name = b['name']
+                enc_name = urllib.parse.quote(name, safe='/=')
+                enc_vid = urllib.parse.quote(vid, safe='') if vid else ''
+                print(f'{enc_vid}\t{enc_name}')
         run: |
           set +e +o pipefail
 
@@ -268,7 +264,6 @@ jobs:
           # ---------------------------------------------------------------
           # WORM (バージョンレベル不変性) 有効な Storage Account は terraform destroy で削除不可
           # (AccountProtectedFromDeletion) のため、事前にクリーンアップする
-          # Python 不要 — az CLI のみで完結
 
           # SA 名・RG 名を特定（state → tfvars フォールバック）
           SA_ID=$(terraform state list 2>/dev/null | grep 'azurerm_storage_account.law_archive' || true)
@@ -326,13 +321,14 @@ jobs:
             --enable-container-delete-retention false \
             --output none 2>/dev/null || true
 
-          # 4. Blob バージョンの不変性ポリシー解除 + 全削除
-          #    az CLI 2.84+ で --version-id が廃止されたため REST API (curl) を使用
-          #    root blob は immutability-policy delete 不可 (OperationNotAllowedOnRootBlob)
-          #    のため set で保持期間を短縮→期限切れ後に削除
+          # 4. Blob の不変性ポリシー解除 + 全削除 (REST API)
+          #    az CLI 2.84+ で --version-id 廃止のため curl + SAS で操作
+          #    正しい REST API パラメータ: comp=immutabilityPolicies (camelCase)
+          #    URL エンコード: safe='/=' で = をエンコードしない
+          #    SAS 権限: dlrwixy (x=permanent delete が必要)
           SAS=$(az storage account generate-sas \
             --account-name "$SA_NAME" --account-key "$KEY" \
-            --permissions dlrwi --services b --resource-types sco \
+            --permissions dlrwixy --services b --resource-types sco \
             --expiry "$(date -u -d '+2 hours' '+%Y-%m-%dT%H:%MZ')" -o tsv)
           BLOB_EP="https://${SA_NAME}.blob.core.windows.net"
           API_VER="x-ms-version: 2021-12-02"
@@ -352,58 +348,45 @@ jobs:
               continue
             fi
 
-            # --- Pass 1: non-current versions → 不変性ポリシー削除 + バージョン削除 ---
-            # Python で URL エンコード済みリスト生成（1 回の呼び出しで全件処理）
-            NC_LIST=$(echo "$BLOBS" | python3 -c "$NC_FILTER_PY" 2>/dev/null || true)
-            if [[ -n "$NC_LIST" ]]; then
-              NC_COUNT=$(echo "$NC_LIST" | wc -l)
-              echo "    Deleting $NC_COUNT non-current versions via REST API..."
-              echo "$NC_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
-                [[ -z "$ENC_VID" ]] && continue
-                curl -s -o /dev/null -X DELETE \
-                  "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutability-policies&versionid=${ENC_VID}&${SAS}" \
-                  -H "$API_VER" || true
-                curl -s -o /dev/null -X DELETE \
-                  "${BLOB_EP}/${C}/${ENC_NAME}?versionid=${ENC_VID}&${SAS}" \
-                  -H "$API_VER" || true
-              done
+            BLOB_LIST=$(echo "$BLOBS" | python3 -c "$BLOB_LIST_PY" 2>/dev/null || true)
+            if [[ -z "$BLOB_LIST" ]]; then
+              echo "    No blobs to process"
+              continue
             fi
+            BLOB_COUNT=$(echo "$BLOB_LIST" | wc -l)
 
-            # --- Pass 2: current (root) versions ---
-            # immutability-policy delete は OperationNotAllowedOnRootBlob のため
-            # set で Unlocked + 短い保持期間 → 期限切れ後に削除
-            # EXPIRY はループ内で毎回計算（ループ時間経過で過去日時になるのを防止）
-            CUR_LIST=$(echo "$BLOBS" | python3 -c "$CUR_FILTER_PY" 2>/dev/null || true)
-            if [[ -n "$CUR_LIST" ]]; then
-              CUR_COUNT=$(echo "$CUR_LIST" | wc -l)
-              echo "    Setting short immutability on $CUR_COUNT root blobs..."
-              echo "$CUR_LIST" | while IFS= read -r ENC_NAME; do
-                [[ -z "$ENC_NAME" ]] && continue
-                # RFC 1123 形式（REST API 仕様）— 毎回計算して過去日時を回避
-                EXPIRY=$(date -u -d "+90 seconds" '+%a, %d %b %Y %H:%M:%S GMT')
-                curl -s -o /dev/null -X PUT \
-                  "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutability-policies&${SAS}" \
-                  -H "$API_VER" \
-                  -H "x-ms-immutability-policy-until-date: ${EXPIRY}" \
-                  -H "x-ms-immutability-policy-mode: Unlocked" || true
-              done
+            # --- Pass 1: root blob の不変性ポリシー削除 + root blob 削除 ---
+            # root blob が残っている場合、先に削除しないと version を削除できない
+            # (OperationNotAllowedOnRootBlob)
+            echo "    Pass 1: Deleting root blobs (immutability + blob) ..."
+            echo "$BLOB_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
+              [[ -z "$ENC_NAME" ]] && continue
+              # root blob の不変性削除（root が無ければ 404 → 無視）
+              curl -sf -o /dev/null -X DELETE \
+                "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutabilityPolicies&${SAS}" \
+                -H "$API_VER" 2>/dev/null || true
+              # root blob 削除（root が無ければ 404 → 無視）
+              curl -sf -o /dev/null -X DELETE \
+                "${BLOB_EP}/${C}/${ENC_NAME}?${SAS}" \
+                -H "$API_VER" 2>/dev/null || true
+            done
 
-              echo "    Waiting 95s for immutability to expire..."
-              sleep 95
-
-              echo "    Deleting $CUR_COUNT root blobs..."
-              echo "$CUR_LIST" | while IFS= read -r ENC_NAME; do
-                [[ -z "$ENC_NAME" ]] && continue
-                curl -s -o /dev/null -X DELETE \
-                  "${BLOB_EP}/${C}/${ENC_NAME}?${SAS}" \
-                  -H "$API_VER" || true
-              done
-            fi
+            # --- Pass 2: version の不変性ポリシー削除 + version 削除 ---
+            echo "    Pass 2: Deleting $BLOB_COUNT versions (immutability + version) ..."
+            echo "$BLOB_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
+              [[ -z "$ENC_VID" || -z "$ENC_NAME" ]] && continue
+              curl -sf -o /dev/null -X DELETE \
+                "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutabilityPolicies&versionid=${ENC_VID}&${SAS}" \
+                -H "$API_VER" 2>/dev/null || true
+              curl -sf -o /dev/null -X DELETE \
+                "${BLOB_EP}/${C}/${ENC_NAME}?versionid=${ENC_VID}&${SAS}" \
+                -H "$API_VER" 2>/dev/null || true
+            done
 
             # 残留確認
             REMAINING=$(az storage blob list -c "$C" --account-name "$SA_NAME" \
               --account-key "$KEY" --include v --num-results '*' --query "length(@)" -o tsv 2>/dev/null || echo "?")
-            echo "    Container $C: $TOTAL processed, $REMAINING remaining"
+            echo "    Container $C: $TOTAL blobs processed, $REMAINING remaining"
           done
 
           # 5. バージョニング無効化
