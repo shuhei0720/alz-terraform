@@ -49,6 +49,12 @@ locals {
     if try(sub.subscription_id, null) == null
   }
 
+  # 既存サブスクリプション（subscription_id 指定済み）→ MG 配置が必要
+  subscriptions_with_ids = {
+    for sub_key, sub in local.subscriptions : sub_key => sub
+    if try(sub.subscription_id, null) != null
+  }
+
   # 解決済みサブスクリプション ID（既存 or 新規作成）
   resolved_subscription_ids = {
     for sub_key, sub in local.subscriptions : sub_key =>
@@ -198,6 +204,22 @@ resource "azurerm_management_group_subscription_association" "vending" {
 
   management_group_id = "/providers/Microsoft.Management/managementGroups/${var.root_id}-${each.value.management_group_id}"
   subscription_id     = "/subscriptions/${azurerm_subscription.vending[each.key].subscription_id}"
+}
+
+# =============================================================================
+# Management Group Association — 既存サブスクリプションを MG に配置
+# =============================================================================
+#
+# YAML に subscription_id を記載した既存サブスクリプションも、management_group_id で
+# 指定した MG に配置する。destroy 後の再作成時にサブスクリプションが元の MG に
+# 戻されないため、明示的な配置が必要。
+# =============================================================================
+
+resource "azurerm_management_group_subscription_association" "vending_existing" {
+  for_each = local.subscriptions_with_ids
+
+  management_group_id = "/providers/Microsoft.Management/managementGroups/${var.root_id}-${each.value.management_group_id}"
+  subscription_id     = "/subscriptions/${each.value.subscription_id}"
 }
 
 # =============================================================================
