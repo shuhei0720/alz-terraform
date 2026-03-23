@@ -124,7 +124,9 @@ alz-terraform/
     │   ├── cd.yaml                        # main マージ時: apply / 手動 destroy
     │   ├── drift-detection.yaml           # 毎日: 構成ドリフト検知 → Issue
     │   ├── dependency-check.yaml          # PR 時: プロバイダー SemVer 分析 + lock 検証
-    │   └── library-update-check.yaml      # 毎週: ALZ/AMBA ライブラリ更新検知 → Issue
+    │   ├── library-update-check.yaml      # 毎週: ALZ/AMBA ライブラリ更新検知 → Issue
+    │   ├── policy-remediation.yaml        # 手動: DINE/Modify ポリシーの修復タスク作成
+    │   └── provider-major-check.yaml      # 毎週: プロバイダーメジャー更新検知 → Issue
     └── ISSUE_TEMPLATE/
         └── library-update-body.md         # ライブラリ更新 Issue のテンプレート
 ```
