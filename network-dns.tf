@@ -27,6 +27,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "private_link" {
   private_dns_zone_name = azapi_resource.private_dns_zone[each.value.zone_name].name
   virtual_network_id    = azurerm_virtual_network.hub[each.value.hub_key].id
   registration_enabled  = false
+  resolution_policy     = "NxDomainRedirect"
   tags                  = var.tags
 }
 
@@ -51,5 +52,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "auto_registration" {
   private_dns_zone_name = azurerm_private_dns_zone.auto_registration[each.key].name
   virtual_network_id    = azurerm_virtual_network.hub[each.key].id
   registration_enabled  = true
+  resolution_policy     = "NxDomainRedirect"
   tags                  = var.tags
 }
