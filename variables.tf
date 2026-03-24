@@ -151,6 +151,7 @@ variable "hub_virtual_networks" {
     address_space                       = list(string)
     gateway_subnet_prefix               = optional(string)
     bastion_subnet_prefix               = optional(string)
+    bastion_sku                         = optional(string, "Standard")
     firewall_subnet_prefix              = optional(string)
     firewall_management_subnet_prefix   = optional(string)
     dns_resolver_inbound_subnet_prefix  = optional(string)

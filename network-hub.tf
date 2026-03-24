@@ -488,6 +488,9 @@ resource "azurerm_bastion_host" "hub" {
   name                = "bastion-hub-${each.value.location}"
   location            = each.value.location
   resource_group_name = azurerm_resource_group.hub[each.key].name
+  sku                 = each.value.bastion_sku
+
+  session_recording_enabled = each.value.bastion_sku != "Basic" ? true : false
 
   ip_configuration {
     name                 = "bastion-ipconfig"
@@ -505,6 +508,35 @@ resource "azurerm_bastion_host" "hub" {
     azurerm_virtual_network_gateway.er,
     azurerm_private_dns_resolver_outbound_endpoint.hub,
   ]
+}
+
+# =============================================================================
+# Bastion セッション録画用 Storage Account
+# =============================================================================
+
+resource "azurerm_storage_account" "bastion_recording" {
+  for_each = {
+    for k, v in var.hub_virtual_networks : k => v
+    if v.bastion_subnet_prefix != null && v.bastion_sku != "Basic"
+  }
+  provider                      = azurerm.connectivity
+  name                          = "stbastionrec${replace(each.value.location, " ", "")}"
+  location                      = each.value.location
+  resource_group_name           = azurerm_resource_group.hub[each.key].name
+  account_tier                  = "Standard"
+  account_replication_type      = "LRS"
+  account_kind                  = "StorageV2"
+  access_tier                   = "Hot"
+  https_traffic_only_enabled    = true
+  min_tls_version               = "TLS1_2"
+  public_network_access_enabled = true  # Bastion からのアクセスに必要
+  tags                          = var.tags
+}
+
+resource "azurerm_storage_container" "bastion_recording" {
+  for_each = azurerm_storage_account.bastion_recording
+  name                 = "bastion-session-recordings"
+  storage_account_id   = each.value.id
 }
 
 # =============================================================================
