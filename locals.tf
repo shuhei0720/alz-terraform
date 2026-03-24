@@ -22,4 +22,24 @@ locals {
       hub_key   = pair[1]
     }
   } : {}
+
+  # DNS アウトバウンド転送ルール — dns-forwarding-rules.yaml × 全 Hub の直積
+  # 全 Hub の forwarding ruleset に同一ルールを作成し、DR 切替時も名前解決を継続する。
+  _dns_forwarding_rules_raw = try(yamldecode(file("${path.module}/dns-forwarding-rules.yaml")), [])
+
+  dns_forwarding_rules = {
+    for entry in flatten([
+      for rule in local._dns_forwarding_rules_raw : [
+        for hub_key, hub in var.hub_virtual_networks : {
+          key                = "${hub_key}/${rule.name}"
+          hub_key            = hub_key
+          name               = rule.name
+          domain_name        = rule.domain_name
+          target_dns_servers = rule.target_dns_servers
+          enabled            = try(rule.enabled, true)
+        }
+        if hub.dns_resolver_outbound_subnet_prefix != null
+      ]
+    ]) : entry.key => entry
+  }
 }
