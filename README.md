@@ -586,8 +586,6 @@ firewall_rules:
 
 > **運用ルール**: 運用チームは各サブスクリプションの YAML ファイルのみ編集し、PR レビューを経て main にマージします。
 
-> **DNS 転送ルール**: ファイアウォールルールと同様にプラットフォームチームが管理します。`dns-forwarding-rules.yaml` で定義します。詳細は [アウトバウンド転送ルール（YAML 駆動）](#アウトバウンド転送ルールyaml-駆動) を参照。
-
 ### Azure Bastion
 
 Azure Bastion は、Azure Portal から VM に安全に RDP/SSH 接続するマネージドサービスです。VM にパブリック IP を付与せず、NSG で RDP/SSH ポートを開放する必要もありません。
