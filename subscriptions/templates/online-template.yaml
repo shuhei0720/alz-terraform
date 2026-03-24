@@ -81,6 +81,18 @@ firewall_rules:
           port: 443
       destination_fqdns: ["<許可する FQDN>"]
 
+# DNS アウトバウンド転送ルール（Hub の forwarding ruleset に追加）
+# 不要であれば dns_forwarding_rules セクションを丸ごと削除してください
+# domain_name は末尾にドット（.）が必要です
+# 全 Hub に同じルールが作成されます（DR 対応）
+#
+# dns_forwarding_rules:
+#   - name: "forward-onprem"
+#     domain_name: "onprem.contoso.local."
+#     target_dns_servers:
+#       - ip_address: "<オンプレ DNS サーバー IP>"
+#         port: 53
+
 # ポリシー免除（このサブスクリプション固有）
 # 不要であれば policy_exemptions セクションを丸ごと削除してください
 # scope 内の ${subscription_id} はこのサブスクリプション ID に自動変換されます

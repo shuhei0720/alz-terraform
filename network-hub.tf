@@ -575,6 +575,36 @@ resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
 }
 
 # =============================================================================
+# DNS Forwarding Rules — サブスクリプション YAML から自動生成
+# =============================================================================
+#
+# サブスクリプション YAML の dns_forwarding_rules に定義したルールを、
+# DR 対応として全 Hub の forwarding ruleset に作成する。
+# ファイアウォールルールと同じパターン。
+# =============================================================================
+
+resource "azurerm_private_dns_resolver_forwarding_rule" "spoke" {
+  for_each = local.vending_dns_forwarding_rules
+
+  name                      = each.value.name
+  dns_forwarding_ruleset_id = azurerm_private_dns_resolver_dns_forwarding_ruleset.hub[each.value.hub_key].id
+  domain_name               = each.value.domain_name
+  enabled                   = each.value.enabled
+
+  dynamic "target_dns_servers" {
+    for_each = each.value.target_dns_servers
+    content {
+      ip_address = target_dns_servers.value.ip_address
+      port       = try(target_dns_servers.value.port, 53)
+    }
+  }
+
+  metadata = {
+    subscription = each.value.sub_key
+  }
+}
+
+# =============================================================================
 # ExpressRoute Circuit
 # =============================================================================
 

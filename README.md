@@ -583,6 +583,8 @@ firewall_rules:
 
 > **運用ルール**: 運用チームは各サブスクリプションの YAML ファイルのみ編集し、PR レビューを経て main にマージします。
 
+> **DNS 転送ルール**: ファイアウォールルールと同じく、YAML の `dns_forwarding_rules` でアウトバウンド DNS 転送ルールも定義できます。詳細は [アウトバウンド転送ルール（YAML 駆動）](#アウトバウンド転送ルールyaml-駆動) を参照。
+
 ### Azure Bastion
 
 Azure Bastion は、Azure Portal から VM に安全に RDP/SSH 接続するマネージドサービスです。VM にパブリック IP を付与せず、NSG で RDP/SSH ポートを開放する必要もありません。
@@ -626,6 +628,48 @@ Spoke VM → DNS Query: mystorageaccount.blob.core.windows.net
 ```
 
 [参考：Azure Private DNS Resolver とは](https://learn.microsoft.com/ja-jp/azure/dns/dns-private-resolver-overview)
+
+#### アウトバウンド転送ルール（YAML 駆動）
+
+サブスクリプション YAML の `dns_forwarding_rules` に定義したルールが、Hub の DNS Forwarding Ruleset に自動追加されます。
+Azure Firewall ルールと同じパターンで、**全 Hub に同じルールが作成**されるため DR 切替時も名前解決が継続します。
+
+```yaml
+# subscriptions/<name>.yaml
+dns_forwarding_rules:
+  - name: "forward-onprem"
+    domain_name: "onprem.contoso.local."    # 末尾にドット必須
+    target_dns_servers:
+      - ip_address: "192.168.1.10"
+        port: 53
+      - ip_address: "192.168.1.11"
+        port: 53
+  - name: "forward-partner"
+    domain_name: "partner.example.com."
+    enabled: false                          # 一時無効化（デフォルト: true）
+    target_dns_servers:
+      - ip_address: "10.100.0.53"
+        port: 53
+```
+
+| フィールド | 必須 | 説明 |
+|:---|:---|:---|
+| `name` | ○ | ルール名（サブスクリプションキーがプレフィックスとして付与） |
+| `domain_name` | ○ | 転送対象ドメイン（末尾 `.` 必須、例: `contoso.local.`） |
+| `target_dns_servers` | ○ | 転送先 DNS サーバー（複数指定可） |
+| `target_dns_servers[].ip_address` | ○ | DNS サーバーの IP アドレス |
+| `target_dns_servers[].port` | − | ポート番号（デフォルト: 53） |
+| `enabled` | − | ルールの有効/無効（デフォルト: `true`） |
+
+```
+Spoke VM → DNS Query: fileserver.onprem.contoso.local
+  → Spoke VNet DNS 設定: Resolver インバウンド IP
+  → Private DNS Resolver → Forwarding Ruleset
+  → ルール一致: onprem.contoso.local. → 192.168.1.10:53
+  → オンプレ DNS サーバーで名前解決
+```
+
+> **注意**: `domain_name` は全サブスクリプションを通じて一意である必要があります。同一ドメインを複数のサブスクリプションで定義するとエラーになります。
 
 ### Private DNS（56 ゾーン）
 
