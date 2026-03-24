@@ -118,6 +118,9 @@ alz-terraform/
 │       ├── corp-template.yaml             # Corp 用テンプレート
 │       └── online-template.yaml           # Online 用テンプレート
 │
+│  ── プラットフォーム設定 ────────────────────────────────────
+├── dns-forwarding-rules.yaml              # DNS アウトバウンド転送ルール（全 Hub 共通）
+│
 │  ── CI/CD ────────────────────────────────────────────────────
 └── .github/
     ├── workflows/
@@ -583,7 +586,7 @@ firewall_rules:
 
 > **運用ルール**: 運用チームは各サブスクリプションの YAML ファイルのみ編集し、PR レビューを経て main にマージします。
 
-> **DNS 転送ルール**: ファイアウォールルールと同じく、YAML の `dns_forwarding_rules` でアウトバウンド DNS 転送ルールも定義できます。詳細は [アウトバウンド転送ルール（YAML 駆動）](#アウトバウンド転送ルールyaml-駆動) を参照。
+> **DNS 転送ルール**: ファイアウォールルールと同様にプラットフォームチームが管理します。`dns-forwarding-rules.yaml` で定義します。詳細は [アウトバウンド転送ルール（YAML 駆動）](#アウトバウンド転送ルールyaml-駆動) を参照。
 
 ### Azure Bastion
 
@@ -631,30 +634,32 @@ Spoke VM → DNS Query: mystorageaccount.blob.core.windows.net
 
 #### アウトバウンド転送ルール（YAML 駆動）
 
-サブスクリプション YAML の `dns_forwarding_rules` に定義したルールが、Hub の DNS Forwarding Ruleset に自動追加されます。
-Azure Firewall ルールと同じパターンで、**全 Hub に同じルールが作成**されるため DR 切替時も名前解決が継続します。
+`dns-forwarding-rules.yaml` に定義したルールが、全 Hub の DNS Forwarding Ruleset に自動追加されます。
+ファイアウォールルールと同じく **全 Hub に同じルールが作成**されるため、DR 切替時も名前解決が継続します。
+
+DNS 転送ルールはサブスクリプション固有ではなく、全 Spoke に共通で適用されるプラットフォーム設定のため、サブスクリプション YAML とは別の専用ファイルで管理します。
 
 ```yaml
-# subscriptions/<name>.yaml
-dns_forwarding_rules:
-  - name: "forward-onprem"
-    domain_name: "onprem.contoso.local."    # 末尾にドット必須
-    target_dns_servers:
-      - ip_address: "192.168.1.10"
-        port: 53
-      - ip_address: "192.168.1.11"
-        port: 53
-  - name: "forward-partner"
-    domain_name: "partner.example.com."
-    enabled: false                          # 一時無効化（デフォルト: true）
-    target_dns_servers:
-      - ip_address: "10.100.0.53"
-        port: 53
+# dns-forwarding-rules.yaml
+- name: "forward-onprem"
+  domain_name: "onprem.contoso.local."    # 末尾にドット必須
+  target_dns_servers:
+    - ip_address: "192.168.1.10"
+      port: 53
+    - ip_address: "192.168.1.11"
+      port: 53
+
+- name: "forward-partner"
+  domain_name: "partner.example.com."
+  enabled: false                          # 一時無効化（デフォルト: true）
+  target_dns_servers:
+    - ip_address: "10.100.0.53"
+      port: 53
 ```
 
 | フィールド | 必須 | 説明 |
 |:---|:---|:---|
-| `name` | ○ | ルール名（サブスクリプションキーがプレフィックスとして付与） |
+| `name` | ○ | ルール名（全ルールで一意） |
 | `domain_name` | ○ | 転送対象ドメイン（末尾 `.` 必須、例: `contoso.local.`） |
 | `target_dns_servers` | ○ | 転送先 DNS サーバー（複数指定可） |
 | `target_dns_servers[].ip_address` | ○ | DNS サーバーの IP アドレス |
@@ -668,8 +673,6 @@ Spoke VM → DNS Query: fileserver.onprem.contoso.local
   → ルール一致: onprem.contoso.local. → 192.168.1.10:53
   → オンプレ DNS サーバーで名前解決
 ```
-
-> **注意**: `domain_name` は全サブスクリプションを通じて一意である必要があります。同一ドメインを複数のサブスクリプションで定義するとエラーになります。
 
 ### Private DNS（56 ゾーン）
 

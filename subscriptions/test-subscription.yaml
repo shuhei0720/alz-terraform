@@ -53,22 +53,6 @@ firewall_rules:
           port: 443
       destination_fqdns: ["api.example.com"]
 
-# DNS アウトバウンド転送ルール（Hub の forwarding ruleset に追加）
-# 全 Hub に同じルールが作成されます（DR 対応）
-dns_forwarding_rules:
-  - name: "forward-onprem"
-    domain_name: "onprem.contoso.local."
-    target_dns_servers:
-      - ip_address: "192.168.1.10"
-        port: 53
-      - ip_address: "192.168.1.11"
-        port: 53
-  - name: "forward-partner"
-    domain_name: "partner.example.com."
-    target_dns_servers:
-      - ip_address: "10.100.0.53"
-        port: 53
-
 # ポリシー免除（このサブスクリプション固有）
 # scope 内の ${subscription_id} はこのサブスクリプション ID に自動変換されます
 

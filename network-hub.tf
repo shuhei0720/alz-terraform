@@ -575,16 +575,15 @@ resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
 }
 
 # =============================================================================
-# DNS Forwarding Rules — サブスクリプション YAML から自動生成
+# DNS Forwarding Rules — dns-forwarding-rules.yaml から自動生成
 # =============================================================================
 #
-# サブスクリプション YAML の dns_forwarding_rules に定義したルールを、
-# DR 対応として全 Hub の forwarding ruleset に作成する。
-# ファイアウォールルールと同じパターン。
+# dns-forwarding-rules.yaml に定義したルールを、全 Hub の forwarding ruleset に
+# 作成する。DR 切替時もセカンダリ Hub に同じルールが存在するため名前解決が継続。
 # =============================================================================
 
-resource "azurerm_private_dns_resolver_forwarding_rule" "spoke" {
-  for_each = local.vending_dns_forwarding_rules
+resource "azurerm_private_dns_resolver_forwarding_rule" "hub" {
+  for_each = local.dns_forwarding_rules
 
   name                      = each.value.name
   dns_forwarding_ruleset_id = azurerm_private_dns_resolver_dns_forwarding_ruleset.hub[each.value.hub_key].id
@@ -597,10 +596,6 @@ resource "azurerm_private_dns_resolver_forwarding_rule" "spoke" {
       ip_address = target_dns_servers.value.ip_address
       port       = try(target_dns_servers.value.port, 53)
     }
-  }
-
-  metadata = {
-    subscription = each.value.sub_key
   }
 }
 

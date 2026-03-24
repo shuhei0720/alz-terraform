@@ -1,0 +1,32 @@
+# =============================================================================
+# DNS アウトバウンド転送ルール
+# =============================================================================
+#
+# ここに定義したルールが、全 Hub の DNS Forwarding Ruleset に自動作成されます。
+# DR 切替時もセカンダリ Hub に同じルールが存在するため、名前解決が継続します。
+#
+# 書式:
+#   - name: "ルール名"                      # 必須: 一意なルール名
+#     domain_name: "contoso.local."          # 必須: 転送対象ドメイン（末尾ドット必須）
+#     enabled: true                          # 任意: false で一時無効化（デフォルト: true）
+#     target_dns_servers:                    # 必須: 転送先 DNS サーバー（複数指定可）
+#       - ip_address: "192.168.1.10"
+#         port: 53                           # 任意: ポート番号（デフォルト: 53）
+#
+# =============================================================================
+
+# オンプレミス DNS 転送（例）
+- name: "forward-onprem"
+  domain_name: "onprem.contoso.local."
+  target_dns_servers:
+    - ip_address: "192.168.1.10"
+      port: 53
+    - ip_address: "192.168.1.11"
+      port: 53
+
+# パートナー企業 DNS 転送（例）
+- name: "forward-partner"
+  domain_name: "partner.example.com."
+  target_dns_servers:
+    - ip_address: "10.100.0.53"
+      port: 53
