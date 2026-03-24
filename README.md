@@ -18,12 +18,13 @@
 6. [ポリシーシステム（3 層カスタマイズ）](#ポリシーシステム3-層カスタマイズ)
 7. [サブスクリプション自動払い出し（Vending）](#サブスクリプション自動払い出しvending)
 8. [監視基盤](#監視基盤)
-9. [セットアップ手順](#セットアップ手順)
-10. [GitHub Actions CI/CD](#github-actions-cicd)
-11. [構成ドリフト検知](#構成ドリフト検知)
-12. [依存バージョン管理](#依存バージョン管理)
-13. [技術補足](#技術補足)
-14. [よくある質問（FAQ）](#よくある質問)
+9. [セキュリティ & ガバナンス](#セキュリティ--ガバナンス)
+10. [セットアップ手順](#セットアップ手順)
+11. [GitHub Actions CI/CD](#github-actions-cicd)
+12. [構成ドリフト検知](#構成ドリフト検知)
+13. [依存バージョン管理](#依存バージョン管理)
+14. [技術補足](#技術補足)
+15. [よくある質問（FAQ）](#よくある質問)
 
 ---
 
@@ -1334,6 +1335,120 @@ VM 上の AMA エージェント
   → LAW（Log Analytics Workspace）にデータ送信
   → Sentinel / アラートルールが検知・通知
 ```
+
+---
+
+## セキュリティ & ガバナンス
+
+本章では、ポリシーのコンプライアンス運用と Microsoft Defender for Cloud の構成について説明します。
+
+### ポリシーコンプライアンス運用
+
+Azure Policy の効果（Effect）によって、非準拠リソースへの対処方法が異なります。
+
+| 効果 | 新規リソース | 既存リソース | 対処方法 |
+|:---|:---|:---|:---|
+| **DeployIfNotExists (DINE)** | 自動適用 | 修復タスクが必要 | Policy Remediation ワークフロー（手動実行） |
+| **Modify** | 自動適用 | 修復タスクが必要 | 同上 |
+| **Deny** | 作成をブロック | — | 該当なし（既存リソースには影響しない） |
+| **Audit** | 非準拠を記録 | 非準拠を記録 | コード修正 or 適用除外 |
+| **AuditIfNotExists** | 非準拠を記録 | 非準拠を記録 | 同上 |
+
+#### DINE / Modify ポリシーの修復
+
+DINE / Modify ポリシーは**新規リソースには自動適用**されますが、**割り当て前に作成された既存リソースには修復タスク（Remediation Task）が必要**です。
+
+本構成では GitHub Actions の **Policy Remediation ワークフロー**（手動実行）で一括対応します。
+
+```
+手動実行（workflow_dispatch）
+  → 管理グループ階層を再帰スキャン
+  → identity を持つ割り当て（= DINE/Modify）を収集
+  → イニシアティブ: メンバーポリシーごとに修復タスクを作成
+  → 単一ポリシー: 直接修復タスクを作成
+```
+
+**実行タイミング:**
+
+| タイミング | 理由 |
+|:---|:---|
+| 初回デプロイ後 | 既存リソースに DINE / Modify を適用 |
+| ポリシーライブラリ更新後 | 新しい DINE ポリシーが追加された場合 |
+| 新しい DINE ポリシーを追加した後 | カスタムポリシーの既存リソースへの適用 |
+
+> **注意**: 新規リソースは自動的にポリシーが適用されるため、日常的な実行は不要です。
+
+#### Audit ポリシーの非準拠対応
+
+Audit ポリシーはリソースの作成・変更をブロックしません。非準拠を**記録するのみ**です。
+Azure Portal の「ポリシー準拠」ダッシュボードで非準拠リソースを確認し、以下の方針で対処します。
+
+| 非準拠の原因 | 対処 |
+|:---|:---|
+| **設計上の意図的な設定** | 適用除外（Exemption）を宣言（[ポリシー適用除外](#ポリシー適用除外exemptions)参照） |
+| **修正すべき設定** | Terraform コードを修正して PR → マージ → CD apply |
+| **評価タイミングの遅延** | ポリシー再評価を待つ（約 24 時間周期）または手動トリガー |
+
+> **手動でのポリシー再評価**: `az policy state trigger-scan --subscription "<SUBSCRIPTION_ID>" --no-wait` で即座にスキャンを開始できます。結果の反映には数分〜数十分かかります。
+
+#### コンプライアンス監視の運用フロー
+
+```
+Azure Policy 準拠ダッシュボード（常時確認可能）
+│
+├── 準拠 (Compliant) → 対応不要
+│
+├── 非準拠 (Non-compliant)
+│   ├── DINE/Modify → Policy Remediation ワークフロー実行
+│   ├── Audit → コード修正 or 適用除外
+│   └── Deny → 該当操作がブロック済み（通常はここに表示されない）
+│
+└── 適用除外 (Exempt) → 設計判断として記録済み
+```
+
+### Microsoft Defender for Cloud
+
+本構成では `Deploy-MDFC-Config-H224` ポリシー割り当てにより、Microsoft Defender for Cloud の**全 12 プラン**を一括有効化しています。
+
+| # | プラン | 保護対象 |
+|:---:|:---|:---|
+| 1 | Servers | VM（Windows / Linux） |
+| 2 | Servers VA | 脆弱性評価 |
+| 3 | App Service | App Service / Functions |
+| 4 | Azure SQL | SQL Database |
+| 5 | SQL on VMs | SQL Server on VMs / Arc |
+| 6 | Open-Source DB | PostgreSQL / MySQL / MariaDB |
+| 7 | Cosmos DB | Azure Cosmos DB |
+| 8 | Storage | Storage Account |
+| 9 | Containers | AKS / Kubernetes |
+| 10 | Key Vault | Key Vault |
+| 11 | ARM | ARM 操作 |
+| 12 | CSPM | クラウドセキュリティ態勢管理 |
+
+#### 動作の仕組み
+
+```
+DINE ポリシー（Deploy-MDFC-Config-H224）
+  → 各サブスクリプションで Defender プランを自動有効化
+  → セキュリティ連絡先メールを自動設定
+  → 新規サブスクリプション追加時も自動適用（MG 継承）
+```
+
+- **新規サブスクリプション**: MG に配置された時点で DINE ポリシーが自動で Defender を有効化
+- **既存サブスクリプション**: Policy Remediation ワークフロー実行で有効化
+- **セキュリティ連絡先**: `policy_default_values` の `email_security_contact` で一括設定
+
+#### Defender アラートの確認
+
+Defender for Cloud のアラートは以下の場所で確認できます:
+
+| 確認場所 | 用途 |
+|:---|:---|
+| **Azure Portal → Defender for Cloud → セキュリティ アラート** | すべてのアラート一覧 |
+| **Azure Portal → Defender for Cloud → 推奨事項** | セキュリティ態勢の改善提案 |
+| **セキュリティ連絡先メール** | 高重大度アラートの自動通知 |
+| **Log Analytics Workspace** | SecurityAlert テーブルでログ分析 |
+| **Microsoft Sentinel** | 高度な脅威検知・インシデント管理 |
 
 ---
 

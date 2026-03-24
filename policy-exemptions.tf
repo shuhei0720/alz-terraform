@@ -151,6 +151,48 @@ locals {
         policy_definition_reference_ids = null
       }
     },
+    # Hub Firewall: Zone Resiliency 免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-fw-zone" => {
+        name                            = "exempt-hub-${hub_key}-fw-zone"
+        policy_assignment               = "Audit-ZoneResiliency"
+        management_group_suffix         = ""
+        resolved_scope                  = azurerm_firewall.hub[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Hub Firewall (${hub_key}) — Zone Resiliency 免除"
+        description                     = "Azure Firewall の zones プロパティは廃止予定。ゾーン冗長は Azure 側で自動適用されるため免除"
+        policy_definition_reference_ids = null
+      } if hub.firewall_subnet_prefix != null
+    },
+    # Hub Firewall PIP: Zone Resiliency 免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-fw-pip-zone" => {
+        name                            = "exempt-hub-${hub_key}-fw-pip-zone"
+        policy_assignment               = "Audit-ZoneResiliency"
+        management_group_suffix         = ""
+        resolved_scope                  = azurerm_public_ip.firewall[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Hub Firewall PIP (${hub_key}) — Zone Resiliency 免除"
+        description                     = "Public IP の zones プロパティは廃止予定。ゾーン冗長は Azure 側で自動適用されるため免除"
+        policy_definition_reference_ids = null
+      } if hub.firewall_subnet_prefix != null
+    },
+    # Hub Bastion PIP: Zone Resiliency 免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-bastion-pip-zone" => {
+        name                            = "exempt-hub-${hub_key}-bastion-pip-zone"
+        policy_assignment               = "Audit-ZoneResiliency"
+        management_group_suffix         = ""
+        resolved_scope                  = azurerm_public_ip.bastion[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Hub Bastion PIP (${hub_key}) — Zone Resiliency 免除"
+        description                     = "Public IP の zones プロパティは廃止予定。ゾーン冗長は Azure 側で自動適用されるため免除"
+        policy_definition_reference_ids = null
+      } if hub.bastion_subnet_prefix != null
+    },
   )
 
   # --- 統合: グローバル + サブスクリプション + インフラ動的免除 ---
