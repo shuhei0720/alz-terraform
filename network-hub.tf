@@ -488,10 +488,6 @@ resource "azurerm_bastion_host" "hub" {
   name                = "bastion-hub-${each.value.location}"
   location            = each.value.location
   resource_group_name = azurerm_resource_group.hub[each.key].name
-  sku                 = each.value.bastion_sku
-
-  session_recording_enabled = each.value.bastion_sku == "Premium" ? true : false
-
   ip_configuration {
     name                 = "bastion-ipconfig"
     subnet_id            = azurerm_subnet.bastion[each.key].id
@@ -508,70 +504,6 @@ resource "azurerm_bastion_host" "hub" {
     azurerm_virtual_network_gateway.er,
     azurerm_private_dns_resolver_outbound_endpoint.hub,
   ]
-}
-
-# =============================================================================
-# Bastion セッション録画（Premium SKU のみ）
-# =============================================================================
-# azurerm は Bastion の identity を未サポートのため、azapi で
-# システム割り当てマネージド ID を追加 → RBAC でストレージアクセスを付与。
-# SAS URL 不要・ローテーション不要で完全に Terraform 管理可能。
-# =============================================================================
-
-# Bastion にシステム割り当てマネージド ID を追加
-resource "azapi_update_resource" "bastion_identity" {
-  for_each = {
-    for k, v in var.hub_virtual_networks : k => v
-    if v.bastion_subnet_prefix != null && v.bastion_sku == "Premium"
-  }
-  type        = "Microsoft.Network/bastionHosts@2024-05-01"
-  resource_id = azurerm_bastion_host.hub[each.key].id
-
-  body = {
-    identity = {
-      type = "SystemAssigned"
-    }
-  }
-
-  response_export_values = ["identity.principalId"]
-}
-
-# 録画保存用 Storage Account
-resource "azurerm_storage_account" "bastion_recording" {
-  for_each = {
-    for k, v in var.hub_virtual_networks : k => v
-    if v.bastion_subnet_prefix != null && v.bastion_sku == "Premium"
-  }
-  provider                      = azurerm.connectivity
-  name                          = "stbastionrec${replace(each.value.location, " ", "")}"
-  location                      = each.value.location
-  resource_group_name           = azurerm_resource_group.hub[each.key].name
-  account_tier                  = "Standard"
-  account_replication_type      = "LRS"
-  account_kind                  = "StorageV2"
-  access_tier                   = "Hot"
-  https_traffic_only_enabled    = true
-  min_tls_version               = "TLS1_2"
-  public_network_access_enabled = true # Bastion からのアクセスに必要
-  tags                          = var.tags
-
-  # ポリシー免除が反映されてから SA を作成する（Enforce-GR-Storage の deny 回避）
-  depends_on = [azapi_resource.policy_exemptions]
-}
-
-resource "azurerm_storage_container" "bastion_recording" {
-  for_each           = azurerm_storage_account.bastion_recording
-  name               = "bastion-session-recordings"
-  storage_account_id = each.value.id
-}
-
-# Bastion MI → Storage Blob Data Contributor（録画の書き込みに必要）
-resource "azurerm_role_assignment" "bastion_recording" {
-  for_each = azapi_update_resource.bastion_identity
-
-  scope                = azurerm_storage_account.bastion_recording[each.key].id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = each.value.output.identity.principalId
 }
 
 # =============================================================================

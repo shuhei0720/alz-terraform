@@ -590,66 +590,6 @@ Hub VNet の `AzureBastionSubnet` にデプロイされ、Hub およびピアリ
 
 [参考：Azure Bastion とは](https://learn.microsoft.com/ja-jp/azure/bastion/bastion-overview)
 
-#### セッション録画
-
-本構成では Bastion の SKU を **Premium** に設定し、**セッション録画（Session Recording）** を有効化しています。
-VM への RDP/SSH 接続がすべて動画として自動録画され、監査・インシデント調査に活用できます。
-
-| 設定 | 値 |
-|:---|:---|
-| **SKU** | Premium（`bastion_sku` 変数で制御、デフォルト: Premium） |
-| **session_recording_enabled** | `true`（Premium SKU の場合に自動有効化） |
-| **録画保存先** | `stbastionrec<location>`（Hub と同じリソースグループ） |
-| **コンテナ** | `bastion-session-recordings` |
-| **認証方式** | システム割り当てマネージド ID + RBAC（SAS URL 不要） |
-
-##### ストレージアクセスの仕組み
-
-SAS URL のローテーションが不要な **マネージド ID + RBAC** 方式を採用しています。
-
-```
-azurerm_bastion_host（Premium SKU / session_recording_enabled = true）
-  │
-  ├── azapi_update_resource: SystemAssigned マネージド ID を付与
-  │
-  ├── azurerm_storage_account: 録画保存先 SA を作成
-  │
-  └── azurerm_role_assignment: Storage Blob Data Contributor を付与
-      → Bastion MI が録画データを直接書き込み（SAS URL 不要）
-```
-
-##### 録画の保存先設定（デプロイ後の 1 回限りの手動設定）
-
-Terraform で以下を自動化しています。
-
-- マネージド ID の付与
-- Storage Account・コンテナの作成
-- RBAC（Storage Blob Data Contributor）の付与
-
-ただし、**録画先コンテナ URI の Bastion への紐付け** は Azure REST API に未公開のため、Terraform では自動設定できません。
-デプロイ後に Azure Portal で **1 回だけ** 設定してください（MI 認証のため SAS URL のローテーション等の継続的な運用は不要です）。
-
-```
-1. Azure Portal → Bastion リソース → 構成
-2. 「セッション録画」セクションで保存先コンテナ URI を設定
-   - URI: https://stbastionrec<location>.blob.core.windows.net/bastion-session-recordings
-   - 認証: マネージド ID（自動構成済み — SAS URL は使用しない）
-```
-
-> **Note**: Azure REST API（2025-05-01 時点）に `storageContainerUri` 相当のプロパティがないため、azapi でも自動化できません。将来 API に追加された場合は Terraform 管理に移行予定です。
-
-##### ポリシー適用除外
-
-録画用 Storage Account は基盤 SA と同様に、以下のポリシーから適用除外しています（`policy-exemptions.tf` で動的管理）。
-
-| 免除 | ポリシー | 理由 |
-|:---|:---|:---|
-| Storage GR | `Enforce-GR-Storage0` | MI 認証でアクセス。SharedKey 制限等は個別対応 |
-| CMK | `Enforce-Encrypt-CMK0` | Microsoft-managed keys で運用 |
-| MCSB | `Deploy-MCSB2-Monitoring` | CMK 未使用・PE 未構成で構造的に非準拠 |
-| ASC | `Deploy-ASC-Monitoring` | MCSB と重複するポリシーの免除 |
-| Zone Resiliency | `Audit-ZoneResiliency` | LRS で運用（録画データはゾーン冗長不要） |
-
 ### Private DNS Resolver
 
 Private DNS Resolver は、Azure VNet 内で DNS クエリを処理するマネージドサービスです。本構成では Hub VNet にデプロイし、以下の役割を担います。
