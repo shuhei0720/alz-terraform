@@ -587,9 +587,34 @@ firewall_rules:
 
 Azure Bastion は、Azure Portal から VM に安全に RDP/SSH 接続するマネージドサービスです。VM にパブリック IP を付与せず、NSG で RDP/SSH ポートを開放する必要もありません。
 Hub VNet の `AzureBastionSubnet` にデプロイされ、Hub およびピアリング済みの Spoke VNet 内の VM に接続できます。
-リモート接続の録画など、セキュリティ要件を満たしたリモート接続環境を提供できます。
 
 [参考：Azure Bastion とは](https://learn.microsoft.com/ja-jp/azure/bastion/bastion-overview)
+
+#### セッション録画
+
+本構成では Bastion の SKU を **Standard** に設定し、**セッション録画（Session Recording）** を有効化しています。
+VM への RDP/SSH 接続がすべて動画として自動録画され、監査・インシデント調査に活用できます。
+
+| 設定 | 値 |
+|:---|:---|
+| **SKU** | Standard（`bastion_sku` 変数で制御、デフォルト: Standard） |
+| **session_recording_enabled** | `true`（SKU が Basic 以外の場合に自動有効化） |
+| **録画保存先** | `stbastionrec<location>`（Hub と同じリソースグループ） |
+| **コンテナ** | `bastion-session-recordings` |
+
+##### 録画の保存先設定（デプロイ後の手動設定が必要）
+
+Terraform で Storage Account とコンテナは自動作成されますが、**Bastion と Storage Account を紐付ける SAS URL の設定**は Azure Portal で行う必要があります。
+
+```
+1. Azure Portal → Bastion リソース → 構成
+2. 「セッション録画」セクションで Storage Account の SAS URL を設定
+   - 対象コンテナ: bastion-session-recordings
+   - 必要なアクセス許可: 読み取り, 書き込み, 一覧
+   - 有効期限: 運用ポリシーに応じて設定（定期ローテーション推奨）
+```
+
+> **注意**: SAS URL には有効期限があるため、定期的なローテーションが必要です。
 
 ### Private DNS Resolver
 
