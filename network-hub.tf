@@ -488,6 +488,7 @@ resource "azurerm_bastion_host" "hub" {
   name                = "bastion-hub-${each.value.location}"
   location            = each.value.location
   resource_group_name = azurerm_resource_group.hub[each.key].name
+
   ip_configuration {
     name                 = "bastion-ipconfig"
     subnet_id            = azurerm_subnet.bastion[each.key].id
