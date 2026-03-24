@@ -43,6 +43,13 @@ locals {
     : ""
   )
 
+  # Bastion 録画用 SA の ID を決定論的に構築（SA 作成前に免除を適用するため）
+  _bastion_rec_sa_ids = {
+    for k, v in var.hub_virtual_networks :
+    k => "/subscriptions/${var.subscription_ids["connectivity"]}/resourceGroups/rg-hub-${v.location}/providers/Microsoft.Storage/storageAccounts/stbastionrec${replace(v.location, " ", "")}"
+    if v.bastion_subnet_prefix != null && v.bastion_sku == "Premium"
+  }
+
   exemption_scope_vars = {
     terraform_state_storage_account_id = var.terraform_state_storage_account_id
     terraform_state_rg_id = (
@@ -200,7 +207,7 @@ locals {
         name                            = "exempt-hub-${hub_key}-bastion-rec-sa-storage-gr"
         policy_assignment               = "Enforce-GR-Storage0"
         management_group_suffix         = "platform"
-        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        resolved_scope                  = local._bastion_rec_sa_ids[hub_key]
         category                        = "Waiver"
         display_name                    = "Bastion Recording SA (${hub_key}) — Storage GR 免除"
         description                     = "Bastion セッション録画専用 SA。MI 認証でアクセス。SharedKey 制限等は個別設定済み。"
@@ -214,7 +221,7 @@ locals {
         name                            = "exempt-hub-${hub_key}-bastion-rec-sa-cmk"
         policy_assignment               = "Enforce-Encrypt-CMK0"
         management_group_suffix         = "platform"
-        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        resolved_scope                  = local._bastion_rec_sa_ids[hub_key]
         category                        = "Waiver"
         display_name                    = "Bastion Recording SA (${hub_key}) — CMK 免除"
         description                     = "Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。"
@@ -228,7 +235,7 @@ locals {
         name                            = "exempt-hub-${hub_key}-bastion-rec-sa-mcsb"
         policy_assignment               = "Deploy-MCSB2-Monitoring"
         management_group_suffix         = ""
-        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        resolved_scope                  = local._bastion_rec_sa_ids[hub_key]
         category                        = "Waiver"
         display_name                    = "Bastion Recording SA (${hub_key}) — MCSB 免除"
         description                     = "録画専用 SA は CMK 未使用・PrivateEndpoint 未構成など MCSB ストレージポリシーに構造的に準拠できないため免除。"
@@ -242,7 +249,7 @@ locals {
         name                            = "exempt-hub-${hub_key}-bastion-rec-sa-asc"
         policy_assignment               = "Deploy-ASC-Monitoring"
         management_group_suffix         = ""
-        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        resolved_scope                  = local._bastion_rec_sa_ids[hub_key]
         category                        = "Waiver"
         display_name                    = "Bastion Recording SA (${hub_key}) — ASC 免除"
         description                     = "Deploy-MCSB2-Monitoring と重複する ASC ストレージポリシーについても同様にリソーススコープで免除。"
@@ -256,7 +263,7 @@ locals {
         name                            = "exempt-hub-${hub_key}-bastion-rec-sa-zone"
         policy_assignment               = "Audit-ZoneResiliency"
         management_group_suffix         = ""
-        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        resolved_scope                  = local._bastion_rec_sa_ids[hub_key]
         category                        = "Waiver"
         display_name                    = "Bastion Recording SA (${hub_key}) — Zone Resiliency 免除"
         description                     = "LRS で運用する設計判断。録画データはゾーン冗長不要。"
