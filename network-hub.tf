@@ -554,6 +554,9 @@ resource "azurerm_storage_account" "bastion_recording" {
   min_tls_version               = "TLS1_2"
   public_network_access_enabled = true # Bastion からのアクセスに必要
   tags                          = var.tags
+
+  # ポリシー免除が反映されてから SA を作成する（Enforce-GR-Storage の deny 回避）
+  depends_on = [azapi_resource.policy_exemptions]
 }
 
 resource "azurerm_storage_container" "bastion_recording" {
