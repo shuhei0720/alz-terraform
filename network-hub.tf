@@ -552,12 +552,12 @@ resource "azurerm_storage_account" "bastion_recording" {
   access_tier                   = "Hot"
   https_traffic_only_enabled    = true
   min_tls_version               = "TLS1_2"
-  public_network_access_enabled = true  # Bastion からのアクセスに必要
+  public_network_access_enabled = true # Bastion からのアクセスに必要
   tags                          = var.tags
 }
 
 resource "azurerm_storage_container" "bastion_recording" {
-  for_each = azurerm_storage_account.bastion_recording
+  for_each           = azurerm_storage_account.bastion_recording
   name               = "bastion-session-recordings"
   storage_account_id = each.value.id
 }
