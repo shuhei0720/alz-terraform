@@ -592,29 +592,56 @@ Hub VNet の `AzureBastionSubnet` にデプロイされ、Hub およびピアリ
 
 #### セッション録画
 
-本構成では Bastion の SKU を **Standard** に設定し、**セッション録画（Session Recording）** を有効化しています。
+本構成では Bastion の SKU を **Premium** に設定し、**セッション録画（Session Recording）** を有効化しています。
 VM への RDP/SSH 接続がすべて動画として自動録画され、監査・インシデント調査に活用できます。
 
 | 設定 | 値 |
 |:---|:---|
-| **SKU** | Standard（`bastion_sku` 変数で制御、デフォルト: Standard） |
-| **session_recording_enabled** | `true`（SKU が Basic 以外の場合に自動有効化） |
+| **SKU** | Premium（`bastion_sku` 変数で制御、デフォルト: Premium） |
+| **session_recording_enabled** | `true`（Premium SKU の場合に自動有効化） |
 | **録画保存先** | `stbastionrec<location>`（Hub と同じリソースグループ） |
 | **コンテナ** | `bastion-session-recordings` |
+| **認証方式** | システム割り当てマネージド ID + RBAC（SAS URL 不要） |
 
-##### 録画の保存先設定（デプロイ後の手動設定が必要）
+##### ストレージアクセスの仕組み
 
-Terraform で Storage Account とコンテナは自動作成されますが、**Bastion と Storage Account を紐付ける SAS URL の設定**は Azure Portal で行う必要があります。
+SAS URL のローテーションが不要な **マネージド ID + RBAC** 方式を採用しています。
+全て Terraform で管理されるため、手動設定は不要です。
+
+```
+azurerm_bastion_host（Premium SKU / session_recording_enabled = true）
+  │
+  ├── azapi_update_resource: SystemAssigned マネージド ID を付与
+  │
+  ├── azurerm_storage_account: 録画保存先 SA を作成
+  │
+  └── azurerm_role_assignment: Storage Blob Data Contributor を付与
+      → Bastion MI が録画データを直接書き込み（SAS URL 不要）
+```
+
+##### 録画の保存先設定（デプロイ後の手動設定）
+
+Terraform でマネージド ID の付与、Storage Account の作成、RBAC の設定は全て自動化されています。
+デプロイ後に Azure Portal で **録画先コンテナ URI** を 1 回だけ設定してください（MI 認証のため SAS URL のローテーションは不要）。
 
 ```
 1. Azure Portal → Bastion リソース → 構成
-2. 「セッション録画」セクションで Storage Account の SAS URL を設定
-   - 対象コンテナ: bastion-session-recordings
-   - 必要なアクセス許可: 読み取り, 書き込み, 一覧
-   - 有効期限: 運用ポリシーに応じて設定（定期ローテーション推奨）
+2. 「セッション録画」セクションで保存先コンテナ URI を設定
+   - URI: https://stbastionrec<location>.blob.core.windows.net/bastion-session-recordings
+   - 認証: マネージド ID（自動構成済み — SAS URL は使用しない）
 ```
 
-> **注意**: SAS URL には有効期限があるため、定期的なローテーションが必要です。
+##### ポリシー適用除外
+
+録画用 Storage Account は基盤 SA と同様に、以下のポリシーから適用除外しています（`policy-exemptions.tf` で動的管理）。
+
+| 免除 | ポリシー | 理由 |
+|:---|:---|:---|
+| Storage GR | `Enforce-GR-Storage0` | MI 認証でアクセス。SharedKey 制限等は個別対応 |
+| CMK | `Enforce-Encrypt-CMK0` | Microsoft-managed keys で運用 |
+| MCSB | `Deploy-MCSB2-Monitoring` | CMK 未使用・PE 未構成で構造的に非準拠 |
+| ASC | `Deploy-ASC-Monitoring` | MCSB と重複するポリシーの免除 |
+| Zone Resiliency | `Audit-ZoneResiliency` | LRS で運用（録画データはゾーン冗長不要） |
 
 ### Private DNS Resolver
 
