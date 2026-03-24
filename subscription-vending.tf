@@ -437,6 +437,11 @@ resource "azapi_resource" "vending_subnets" {
     max_interval_seconds = 60
   }
 
+  # VNet DNS 更新（PATCH）とサブネット作成（PUT）が同一 VNet に対して並行実行すると
+  # Azure が CanceledAndSupersededDueToAnotherOperation で一方をキャンセルする。
+  # DNS 更新完了後にサブネットを作成することで競合を回避。
+  depends_on = [azapi_update_resource.vending_vnet_dns]
+
   lifecycle { ignore_changes = all }
 }
 
