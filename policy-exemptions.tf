@@ -193,6 +193,76 @@ locals {
         policy_definition_reference_ids = null
       } if hub.bastion_subnet_prefix != null
     },
+    # Bastion 録画 SA: Storage ガードレール免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-bastion-rec-sa-storage-gr" => {
+        name                            = "exempt-hub-${hub_key}-bastion-rec-sa-storage-gr"
+        policy_assignment               = "Enforce-GR-Storage0"
+        management_group_suffix         = "platform"
+        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Bastion Recording SA (${hub_key}) — Storage GR 免除"
+        description                     = "Bastion セッション録画専用 SA。MI 認証でアクセス。SharedKey 制限等は個別設定済み。"
+        policy_definition_reference_ids = null
+      } if hub.bastion_subnet_prefix != null && hub.bastion_sku == "Premium"
+    },
+    # Bastion 録画 SA: CMK 免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-bastion-rec-sa-cmk" => {
+        name                            = "exempt-hub-${hub_key}-bastion-rec-sa-cmk"
+        policy_assignment               = "Enforce-Encrypt-CMK0"
+        management_group_suffix         = "platform"
+        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Bastion Recording SA (${hub_key}) — CMK 免除"
+        description                     = "Microsoft-managed keys で運用。CMK はコスト・運用複雑性のトレードオフにより見送り。"
+        policy_definition_reference_ids = null
+      } if hub.bastion_subnet_prefix != null && hub.bastion_sku == "Premium"
+    },
+    # Bastion 録画 SA: MCSB 免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-bastion-rec-sa-mcsb" => {
+        name                            = "exempt-hub-${hub_key}-bastion-rec-sa-mcsb"
+        policy_assignment               = "Deploy-MCSB2-Monitoring"
+        management_group_suffix         = ""
+        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Bastion Recording SA (${hub_key}) — MCSB 免除"
+        description                     = "録画専用 SA は CMK 未使用・PrivateEndpoint 未構成など MCSB ストレージポリシーに構造的に準拠できないため免除。"
+        policy_definition_reference_ids = null
+      } if hub.bastion_subnet_prefix != null && hub.bastion_sku == "Premium"
+    },
+    # Bastion 録画 SA: ASC 免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-bastion-rec-sa-asc" => {
+        name                            = "exempt-hub-${hub_key}-bastion-rec-sa-asc"
+        policy_assignment               = "Deploy-ASC-Monitoring"
+        management_group_suffix         = ""
+        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Bastion Recording SA (${hub_key}) — ASC 免除"
+        description                     = "Deploy-MCSB2-Monitoring と重複する ASC ストレージポリシーについても同様にリソーススコープで免除。"
+        policy_definition_reference_ids = null
+      } if hub.bastion_subnet_prefix != null && hub.bastion_sku == "Premium"
+    },
+    # Bastion 録画 SA: Zone Resiliency 免除
+    {
+      for hub_key, hub in var.hub_virtual_networks :
+      "exempt-hub-${hub_key}-bastion-rec-sa-zone" => {
+        name                            = "exempt-hub-${hub_key}-bastion-rec-sa-zone"
+        policy_assignment               = "Audit-ZoneResiliency"
+        management_group_suffix         = ""
+        resolved_scope                  = azurerm_storage_account.bastion_recording[hub_key].id
+        category                        = "Waiver"
+        display_name                    = "Bastion Recording SA (${hub_key}) — Zone Resiliency 免除"
+        description                     = "LRS で運用する設計判断。録画データはゾーン冗長不要。"
+        policy_definition_reference_ids = null
+      } if hub.bastion_subnet_prefix != null && hub.bastion_sku == "Premium"
+    },
   )
 
   # --- 統合: グローバル + サブスクリプション + インフラ動的免除 ---
