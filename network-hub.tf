@@ -574,6 +574,17 @@ resource "azurerm_private_dns_resolver_dns_forwarding_ruleset" "hub" {
   tags = var.tags
 }
 
+# Forwarding Ruleset → Hub VNet リンク
+resource "azurerm_private_dns_resolver_virtual_network_link" "hub" {
+  for_each = {
+    for k, v in var.hub_virtual_networks :
+    k => v if v.dns_resolver_outbound_subnet_prefix != null
+  }
+  name                      = "link-hub-${each.value.location}"
+  dns_forwarding_ruleset_id = azurerm_private_dns_resolver_dns_forwarding_ruleset.hub[each.key].id
+  virtual_network_id        = azurerm_virtual_network.hub[each.key].id
+}
+
 # =============================================================================
 # DNS Forwarding Rules — dns-forwarding-rules.yaml から自動生成
 # =============================================================================
