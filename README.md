@@ -690,7 +690,7 @@ VM → DNS Query: mystorageaccount.blob.core.windows.net
 56 ゾーンは主要な Azure サービス（Storage, SQL, Key Vault, Cosmos DB, Event Hub, Service Bus, Web Apps 等）をカバーしています。
 Azureポリシーにより、PaaSリソースのプライベートエンドポイントの作成と同時にDNSレコードが自動で登録されます。
 各ゾーンは Hub VNet にリンクされ、Hub VNet の DNS 設定を使う全 VNet から名前解決できます。
-すべての VNet リンクでインターネットフォールバック（`resolution_policy = NxDomainRedirect`）が有効になっており、Private DNS Zone で解決できないクエリは Azure パブリック DNS にフォールバックします。
+すべての Private Link ゾーンの VNet リンクでインターネットフォールバック（`resolution_policy = NxDomainRedirect`）が有効になっており、Private DNS Zone で解決できないクエリは Azure パブリック DNS にフォールバックします。
 
 [参考：Private Link と DNS の大規模な統合](https://learn.microsoft.com/ja-jp/azure/cloud-adoption-framework/ready/azure-best-practices/private-link-and-dns-integration-at-scale)
 
