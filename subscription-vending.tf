@@ -147,6 +147,30 @@ locals {
     if try(sub.firewall_rules, null) != null
   }
 
+  # dns_forwarding_rules — Hub × サブスクリプション × ルールの直積（DR 対応）
+  # ファイアウォールルールと同様、全 Hub の forwarding ruleset に同じルールを作成する。
+  # DR 切替時に Spoke VNet の DNS サーバーがセカンダリ Hub の Resolver に切り替わっても
+  # アウトバウンド転送ルールが存在するため、名前解決が継続される。
+  vending_dns_forwarding_rules = {
+    for entry in flatten([
+      for sub_key, sub in local.subscriptions : [
+        for rule in try(sub.dns_forwarding_rules, []) : [
+          for hub_key, hub in var.hub_virtual_networks : {
+            key                = "${hub_key}/${sub_key}/${rule.name}"
+            hub_key            = hub_key
+            sub_key            = sub_key
+            name               = "${sub_key}-${rule.name}"
+            domain_name        = rule.domain_name
+            target_dns_servers = rule.target_dns_servers
+            enabled            = try(rule.enabled, true)
+          }
+          if hub.dns_resolver_outbound_subnet_prefix != null
+        ]
+      ]
+      if try(sub.dns_forwarding_rules, null) != null
+    ]) : entry.key => entry
+  }
+
   # alert_contacts が定義されている Spoke サブスクリプション（アラートルーティング用）
   vending_with_alerts = {
     for sub_key, sub in local.subscriptions : sub_key => {
