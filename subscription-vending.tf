@@ -197,17 +197,26 @@ resource "time_sleep" "wait_for_subscription" {
 
 # =============================================================================
 # Management Group Association — 新規作成したサブスクリプションを MG に配置
+# azapi を使用して MG 伝搬遅延（NotFound）に自動リトライで対応
 # =============================================================================
 
-resource "azurerm_management_group_subscription_association" "vending" {
+resource "azapi_resource" "vending_mg_association" {
   for_each = local.subscriptions_to_create
 
-  management_group_id = "/providers/Microsoft.Management/managementGroups/${var.root_id}-${each.value.management_group_id}"
-  subscription_id     = "/subscriptions/${azurerm_subscription.vending[each.key].subscription_id}"
+  type      = "Microsoft.Management/managementGroups/subscriptions@2021-04-01"
+  name      = azurerm_subscription.vending[each.key].subscription_id
+  parent_id = "/providers/Microsoft.Management/managementGroups/${var.root_id}-${each.value.management_group_id}"
+
+  retry = {
+    error_message_regex  = ["NotFound", "not found", "ManagementGroupNotFound"]
+    interval_seconds     = 30
+    max_interval_seconds = 300
+  }
 }
 
 # =============================================================================
 # Management Group Association — 既存サブスクリプションを MG に配置
+# azapi を使用して MG 伝搬遅延（NotFound）に自動リトライで対応
 # =============================================================================
 #
 # YAML に subscription_id を記載した既存サブスクリプションも、management_group_id で
@@ -215,11 +224,18 @@ resource "azurerm_management_group_subscription_association" "vending" {
 # 戻されないため、明示的な配置が必要。
 # =============================================================================
 
-resource "azurerm_management_group_subscription_association" "vending_existing" {
+resource "azapi_resource" "vending_mg_association_existing" {
   for_each = local.subscriptions_with_ids
 
-  management_group_id = "/providers/Microsoft.Management/managementGroups/${var.root_id}-${each.value.management_group_id}"
-  subscription_id     = "/subscriptions/${each.value.subscription_id}"
+  type      = "Microsoft.Management/managementGroups/subscriptions@2021-04-01"
+  name      = each.value.subscription_id
+  parent_id = "/providers/Microsoft.Management/managementGroups/${var.root_id}-${each.value.management_group_id}"
+
+  retry = {
+    error_message_regex  = ["NotFound", "not found", "ManagementGroupNotFound"]
+    interval_seconds     = 30
+    max_interval_seconds = 300
+  }
 }
 
 # =============================================================================
