@@ -603,19 +603,6 @@ resource "azurerm_express_route_circuit" "hub" {
 # ExpressRoute Gateway
 # =============================================================================
 
-resource "azurerm_public_ip" "er_gateway" {
-  for_each = {
-    for k, v in var.hub_virtual_networks : k => v if v.gateway_subnet_prefix != null
-  }
-  provider            = azurerm.connectivity
-  name                = "pip-ergw-hub-${each.value.location}"
-  location            = each.value.location
-  resource_group_name = azurerm_resource_group.hub[each.key].name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  tags                = var.tags
-}
-
 resource "azurerm_virtual_network_gateway" "er" {
   for_each = {
     for k, v in var.hub_virtual_networks : k => v if v.gateway_subnet_prefix != null
@@ -630,7 +617,6 @@ resource "azurerm_virtual_network_gateway" "er" {
   ip_configuration {
     name                          = "ergw-ipconfig"
     subnet_id                     = azurerm_subnet.gateway[each.key].id
-    public_ip_address_id          = azurerm_public_ip.er_gateway[each.key].id
     private_ip_address_allocation = "Dynamic"
   }
 

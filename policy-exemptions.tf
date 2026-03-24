@@ -193,8 +193,8 @@ resource "azapi_resource" "policy_exemptions" {
     azurerm_management_group_subscription_association.connectivity,
     azurerm_management_group_subscription_association.identity,
     azurerm_management_group_subscription_association.security,
-    azurerm_management_group_subscription_association.vending,
-    azurerm_management_group_subscription_association.vending_existing,
+    azapi_resource.vending_mg_association,
+    azapi_resource.vending_mg_association_existing,
   ]
 }
 
