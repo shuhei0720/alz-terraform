@@ -587,8 +587,29 @@ firewall_rules:
 
 Azure Bastion は、Azure Portal から VM に安全に RDP/SSH 接続するマネージドサービスです。VM にパブリック IP を付与せず、NSG で RDP/SSH ポートを開放する必要もありません。
 Hub VNet の `AzureBastionSubnet` にデプロイされ、Hub およびピアリング済みの Spoke VNet 内の VM に接続できます。
+リモート接続の録画など、セキュリティ要件を満たしたリモート接続環境を提供できます。
 
 [参考：Azure Bastion とは](https://learn.microsoft.com/ja-jp/azure/bastion/bastion-overview)
+
+#### セッション録画について
+
+Azure Bastion Premium SKU では、RDP/SSH セッションの録画機能（Session Recording）が利用できます。
+録画データは指定した Storage Account の Blob コンテナに自動保存され、監査やインシデント調査に活用できます。
+
+[参考：Bastion セッション録画](https://learn.microsoft.com/ja-jp/azure/bastion/session-recording)
+
+**本構成で Terraform による録画設定を実装しない理由:**
+
+Bastion のセッション録画を有効化するには、Bastion リソースに録画先の Storage Account コンテナ URI（`storageContainerUri`）をバインドする必要があります。
+しかし、Azure Resource Manager API（2019〜2025-05-01 の全バージョン）には `storageContainerUri` プロパティが存在せず、この設定は Azure Portal の内部 API でのみ操作可能です。
+`azurerm` / `azapi` プロバイダーのいずれでも ARM API を経由するため、Terraform からコンテナ URI を設定することができません。
+
+そのため、Bastion のデプロイは Terraform で行い、セッション録画の有効化は Azure Portal から手動で設定する運用としています。
+
+| 設定項目 | 管理方法 |
+|:---|:---|
+| Bastion リソース（Basic SKU） | Terraform で自動デプロイ |
+| セッション録画の有効化 | Azure Portal から手動設定（SKU を Premium に変更し、コンテナ URI をバインド） |
 
 ### Private DNS Resolver
 
