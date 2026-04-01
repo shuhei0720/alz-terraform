@@ -24,9 +24,9 @@ tags = {
 # Management Resources
 # =============================================================================
 
-log_analytics_retention_days = 30     # LAW \u5185\u306e\u30c7\u30fc\u30bf\u4fdd\u6301\uff08\u5206\u6790\u7528\u30fb\u77ed\u671f\uff09
-sentinel_enabled             = true
-law_archive_retention_days   = 0      # Blob \u30a2\u30fc\u30ab\u30a4\u30d6\u4fdd\u6301\u65e5\u6570\uff080 = \u7121\u52b9\u3001\u4f8b: 365\uff09
+log_analytics_retention_days = 30     # LAW 内のデータ保持日数（KQL で即検索可能な期間）
+sentinel_enabled             = true   # Microsoft Sentinel（SIEM/SOAR）の有効化
+law_archive_retention_days   = 0      # アーカイブ保持日数（0 = 無効、例: 335 → 分析 30 日 + アーカイブ 335 日 = 計 365 日保持）
 
 # =============================================================================
 # Network
@@ -35,28 +35,47 @@ law_archive_retention_days   = 0      # Blob \u30a2\u30fc\u30ab\u30a4\u30d6\u4fd
 hub_virtual_networks = {
   primary = {
     location                          = "japaneast"
-    address_space                     = ["10.0.0.0/16"]
-    gateway_subnet_prefix             = "10.0.0.0/27"    # VPN/ER Gateway 用
-    bastion_subnet_prefix             = "10.0.1.0/26"    # Bastion 用
-    firewall_subnet_prefix            = "10.0.2.0/26"    # Azure Firewall 用 (/26 最小)
+    address_space                     = ["10.0.0.0/22"]   # Hub 用（1,024 IP。将来のサブネット追加に余裕あり）
+    gateway_subnet_prefix             = "10.0.0.0/27"    # VPN/ER Gateway 用（Azure 推奨最小）
+    bastion_subnet_prefix             = "10.0.0.64/26"   # Bastion 用（Azure 要件 /26 最小）
+    firewall_subnet_prefix            = "10.0.1.0/26"    # Azure Firewall 用（Azure 要件 /26 最小）
     firewall_management_subnet_prefix = null              # 強制トンネリング時のみ必要
     firewall_sku_tier                 = "Standard"
     firewall_threat_intel_mode        = "Deny"
-    dns_resolver_inbound_subnet_prefix  = "10.0.3.0/28"  # Private DNS Resolver インバウンド
-    dns_resolver_outbound_subnet_prefix = "10.0.3.16/28"  # Private DNS Resolver アウトバウンド
+    dns_resolver_inbound_subnet_prefix  = "10.0.2.0/28"  # Private DNS Resolver インバウンド
+    dns_resolver_outbound_subnet_prefix = "10.0.2.16/28" # Private DNS Resolver アウトバウンド
     # gateway_sku                     = "ErGw1AZ"  # デフォルト: ErGw1AZ（ゾーン冗長）
+    # ExpressRoute 設定（デフォルト値付き。変更する場合のみコメント解除）
+    # express_route = {
+    #   service_provider_name = "Equinix"    # 回線プロバイダー（例: "NTT Communications", "KDDI"）
+    #   peering_location      = "Tokyo"      # ピアリング拠点
+    #   bandwidth_in_mbps     = 50           # 帯域幅（Mbps）
+    #   sku_tier              = "Standard"   # Standard or Premium
+    #   sku_family            = "MeteredData" # MeteredData or UnlimitedData
+    #   connection_enabled    = false         # キャリア開通後に true に変更
+    # }
   }
   # セカンダリリージョンが必要な場合はコメントを解除
   # secondary = {
   #   location                          = "japanwest"
-  #   address_space                     = ["10.1.0.0/16"]
-  #   gateway_subnet_prefix             = "10.1.0.0/27"
-  #   bastion_subnet_prefix             = "10.1.1.0/26"
-  #   firewall_subnet_prefix            = "10.1.2.0/26"
+  #   address_space                     = ["10.0.4.0/22"]   # セカンダリ Hub 用
+  #   gateway_subnet_prefix             = "10.0.4.0/27"
+  #   bastion_subnet_prefix             = "10.0.4.64/26"
+  #   firewall_subnet_prefix            = "10.0.5.0/26"
   #   firewall_management_subnet_prefix = null
   #   firewall_sku_tier                 = "Standard"
   #   firewall_threat_intel_mode        = "Deny"
+  #   dns_resolver_inbound_subnet_prefix  = "10.0.6.0/28"
+  #   dns_resolver_outbound_subnet_prefix = "10.0.6.16/28"
   #   # gateway_sku                     = "ErGw1AZ"
+  #   # express_route = {
+  #   #   service_provider_name = "Equinix"
+  #   #   peering_location      = "Osaka"
+  #   #   bandwidth_in_mbps     = 50
+  #   #   sku_tier              = "Standard"
+  #   #   sku_family            = "MeteredData"
+  #   #   connection_enabled    = false
+  #   # }
   # }
 }
 

@@ -56,16 +56,16 @@ virtual_network:
   hub_key: "primary"                      # ピアリング先 Hub キー（hub_virtual_networks のキー名）
   name: "vnet-<システム名>"
   resource_group_name: "rg-<システム名>-network"
-  address_space: ["<例: 10.201.0.0/16>"]
+  address_space: ["<例: 10.200.0.0/24>"]
   hub_peering_enabled: true       # Hub ピアリング有効 → Firewall 経由でオンプレ接続
   use_hub_gateway: true           # ExpressRoute Gateway 経由でオンプレルートを受信
   subnets:
     - name: "snet-app"
-      address_prefix: "<例: 10.201.1.0/24>"
+      address_prefix: "<例: 10.200.0.0/26>"
     - name: "snet-data"
-      address_prefix: "<例: 10.201.2.0/24>"
+      address_prefix: "<例: 10.200.0.64/26>"
     - name: "snet-web"
-      address_prefix: "<例: 10.201.3.0/24>"
+      address_prefix: "<例: 10.200.0.128/26>"
 
 # Azure Firewall ルール（サブスクリプション固有の穴あけ）
 # 不要であれば firewall_rules セクションを丸ごと削除してください
