@@ -44,16 +44,15 @@ hub_virtual_networks = {
     firewall_threat_intel_mode        = "Deny"
     dns_resolver_inbound_subnet_prefix  = "10.0.2.0/28"  # Private DNS Resolver インバウンド
     dns_resolver_outbound_subnet_prefix = "10.0.2.16/28" # Private DNS Resolver アウトバウンド
-    # gateway_sku                     = "ErGw1AZ"  # デフォルト: ErGw1AZ（ゾーン冗長）
-    # ExpressRoute 設定（デフォルト値付き。変更する場合のみコメント解除）
-    # express_route = {
-    #   service_provider_name = "Equinix"    # 回線プロバイダー（例: "NTT Communications", "KDDI"）
-    #   peering_location      = "Tokyo"      # ピアリング拠点
-    #   bandwidth_in_mbps     = 50           # 帯域幅（Mbps）
-    #   sku_tier              = "Standard"   # Standard or Premium
-    #   sku_family            = "MeteredData" # MeteredData or UnlimitedData
-    #   connection_enabled    = false         # キャリア開通後に true に変更
-    # }
+    gateway_sku                         = "ErGw1AZ"      # ゾーン冗長 ER Gateway
+    express_route = {
+      service_provider_name = "Equinix"     # 回線プロバイダー（例: "NTT Communications", "KDDI"）
+      peering_location      = "Tokyo"       # ピアリング拠点
+      bandwidth_in_mbps     = 50            # 帯域幅（Mbps）
+      sku_tier              = "Standard"    # Standard or Premium
+      sku_family            = "MeteredData" # MeteredData or UnlimitedData
+      connection_enabled    = false          # キャリア開通後に true に変更
+    }
   }
   # セカンダリリージョンが必要な場合はコメントを解除
   # secondary = {
@@ -67,15 +66,15 @@ hub_virtual_networks = {
   #   firewall_threat_intel_mode        = "Deny"
   #   dns_resolver_inbound_subnet_prefix  = "10.0.6.0/28"
   #   dns_resolver_outbound_subnet_prefix = "10.0.6.16/28"
-  #   # gateway_sku                     = "ErGw1AZ"
-  #   # express_route = {
-  #   #   service_provider_name = "Equinix"
-  #   #   peering_location      = "Osaka"
-  #   #   bandwidth_in_mbps     = 50
-  #   #   sku_tier              = "Standard"
-  #   #   sku_family            = "MeteredData"
-  #   #   connection_enabled    = false
-  #   # }
+  #   gateway_sku                         = "ErGw1AZ"
+  #   express_route = {
+  #     service_provider_name = "Equinix"
+  #     peering_location      = "Osaka"
+  #     bandwidth_in_mbps     = 50
+  #     sku_tier              = "Standard"
+  #     sku_family            = "MeteredData"
+  #     connection_enabled    = false
+  #   }
   # }
 }
 
@@ -87,32 +86,8 @@ hub_virtual_networks = {
 # =============================================================================
 # DNS
 # =============================================================================
-# Private DNS はデフォルトで有効。無効化する場合は 以下をコメント解除。
+# Private DNS はデフォルトで有効（55 ゾーン）。無効化する場合のみコメント解除。
 # private_dns_enabled = false
-#
-# デフォルトで 55 個の Azure Private Link DNS ゾーンが作成されます。
-# ゾーン一覧は variables.tf の private_dns_zones を参照。
-#
-# カスタマイズ例:
-#
-#   1. ゾーンを追加する場合:
-#      variables.tf の private_dns_zones の default リストに追加してください。
-#
-#   2. 特定のゾーンだけ使う場合:
-#      全デフォルトを上書きしたい場合のみ、ここで private_dns_zones を指定。
-#      private_dns_zones = [
-#        "privatelink.blob.core.windows.net",
-#        "privatelink.database.windows.net",
-#        "privatelink.vaultcore.azure.net",
-#      ]
-#
-#   3. リージョン固有ゾーンについて:
-#      以下の 4 ゾーンは japaneast 固有です。
-#      primary_location を変更する場合は variables.tf で置換が必要です。
-#        - privatelink.japaneast.azmk8s.io
-#        - privatelink.japaneast.kusto.windows.net
-#        - privatelink.jpe.backup.windowsazure.com
-#        - japaneast.data.privatelink.azurecr.io
 
 # =============================================================================
 # AMBA (Azure Monitor Baseline Alerts)
