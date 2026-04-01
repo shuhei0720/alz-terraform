@@ -90,7 +90,7 @@ hub_virtual_networks = {
 # Private DNS はデフォルトで有効。無効化する場合は 以下をコメント解除。
 # private_dns_enabled = false
 #
-# デフォルトで 56 個の Azure Private Link DNS ゾーンが作成されます。
+# デフォルトで 55 個の Azure Private Link DNS ゾーンが作成されます。
 # ゾーン一覧は variables.tf の private_dns_zones を参照。
 #
 # カスタマイズ例:
