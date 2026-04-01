@@ -123,6 +123,7 @@ alz-terraform/
 │
 │  ── CI/CD ────────────────────────────────────────────────────
 └── .github/
+    ├── dependabot.yml                     # Dependabot 設定（Terraform プロバイダー + Actions）
     ├── workflows/
     │   ├── ci.yaml                        # PR 時: fmt + validate + plan
     │   ├── cd.yaml                        # main マージ時: apply / 手動 destroy
@@ -132,7 +133,10 @@ alz-terraform/
     │   ├── policy-remediation.yaml        # 手動: DINE/Modify ポリシーの修復タスク作成
     │   └── provider-major-check.yaml      # 毎週: プロバイダーメジャー更新検知 → Issue
     └── ISSUE_TEMPLATE/
-        └── library-update-body.md         # ライブラリ更新 Issue のテンプレート
+        ├── dependency-check-body.md       # 依存関係チェック Issue テンプレート
+        ├── drift-detection-body.md        # ドリフト検知 Issue テンプレート
+        ├── library-update-body.md         # ライブラリ更新 Issue テンプレート
+        └── provider-major-update-body.md  # プロバイダーメジャー更新 Issue テンプレート
 ```
 
 ### ファイルの読み方と使い方
@@ -1674,7 +1678,7 @@ hub_virtual_networks = {
     dns_resolver_outbound_subnet_prefix = "10.0.2.16/28"
     firewall_sku_tier                   = "Standard"
     firewall_threat_intel_mode          = "Deny"
-    # gateway_sku                       = "ErGw1AZ"  # デフォルト: ErGw1AZ（ゾーン冗長）
+    gateway_sku                         = "ErGw1AZ"
     express_route = {
       service_provider_name = "Equinix"
       peering_location      = "Tokyo"
@@ -1696,7 +1700,7 @@ hub_virtual_networks = {
   #   dns_resolver_outbound_subnet_prefix = "10.0.6.16/28"
   #   firewall_sku_tier                   = "Standard"
   #   firewall_threat_intel_mode          = "Deny"
-  #   # gateway_sku                       = "ErGw1AZ"
+  #   gateway_sku                         = "ErGw1AZ"
   #   express_route = {
   #     service_provider_name = "Equinix"
   #     peering_location      = "Osaka"
