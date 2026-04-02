@@ -239,7 +239,7 @@ variable "private_dns_zones" {
   description = "作成する Azure Private Link DNS ゾーンの一覧（ALZ Deploy-Private-DNS-Zones ポリシー準拠 + 追加分）"
   type        = set(string)
   default = [
-    # --- ALZ Deploy-Private-DNS-Zones ポリシーが参照する 50 ゾーン ---
+    # --- ALZ Deploy-Private-DNS-Zones ポリシーが参照する 53 ゾーン ---
     # ※ 一部のゾーンはリージョン固有（japaneast）。リージョン変更時は要修正。
     "privatelink.adf.azure.com",                        # Data Factory
     "privatelink.afs.azure.net",                        # Azure File Sync

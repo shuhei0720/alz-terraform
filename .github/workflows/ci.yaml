@@ -12,6 +12,7 @@ permissions:
   id-token: write
   contents: read
   pull-requests: write
+  security-events: write
 
 env:
   ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -20,16 +21,92 @@ env:
   ARM_USE_OIDC: true
 
 jobs:
+  # ===========================================================================
+  # Security Scan — Trivy IaC（Azure 認証不要・plan と並列実行）
+  # ===========================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      # --- SARIF: GitHub Code Scanning（Security タブ + PR inline annotation） ---
+      - name: Trivy IaC Scan (SARIF)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          trivyignores: '.trivyignore'
+          exit-code: '0'
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
+        if: ${{ !cancelled() }}
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      # --- Table: PR コメント + Gate（HIGH/CRITICAL のみ） ---
+      - name: Trivy IaC Scan (Gate)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        id: trivy
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'table'
+          output: 'trivy-table.txt'
+          severity: 'HIGH,CRITICAL'
+          trivyignores: '.trivyignore'
+          exit-code: '1'
+        continue-on-error: true
+
+      - name: Post Security Results to PR
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        if: ${{ !cancelled() }}
+        with:
+          script: |
+            const fs = require('fs');
+            const raw = fs.readFileSync('trivy-table.txt', 'utf8').trim();
+            const passed = '${{ steps.trivy.outcome }}' === 'success';
+            let body;
+            if (passed || raw.length === 0) {
+              body = '#### 🛡️ Trivy セキュリティスキャン ✅\nHIGH/CRITICAL の問題は検出されませんでした。\n\n> MEDIUM の検出がある場合は **Security** タブ → Code scanning alerts で確認できます。';
+            } else {
+              const table = raw.length > 60000
+                ? raw.substring(0, 30000) + '\n\n... (省略) ...\n\n' + raw.substring(raw.length - 30000)
+                : raw;
+              body = `#### 🛡️ Trivy セキュリティスキャン ❌\n<details>\n<summary>HIGH/CRITICAL の問題が検出されました（クリックで展開）</summary>\n\n\`\`\`\n${table}\n\`\`\`\n</details>\n\n> 上記の問題を修正するか、許容する場合は理由を添えて \`.trivyignore\` に追加してください。\n> 詳細: **Security** タブ → Code scanning alerts`;
+            }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body.substring(0, 65536)
+            });
+
+      - name: Security Gate
+        if: steps.trivy.outcome == 'failure'
+        run: |
+          echo "::error::Trivy が HIGH/CRITICAL のセキュリティ問題を検出しました。PR コメントを確認してください。"
+          exit 1
+
+  # ===========================================================================
+  # Validate & Plan — Terraform（plan と並列実行）
+  # ===========================================================================
   plan:
     name: Validate & Plan
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4
         with:
           terraform_version: "~> 1.12"
 
@@ -55,7 +132,7 @@ jobs:
         continue-on-error: true
 
       - name: Post Plan to PR
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const fs = require('fs');
