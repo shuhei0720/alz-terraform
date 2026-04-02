@@ -1,0 +1,103 @@
+display_name: "test-data"
+# subscription_id 省略 → 新規作成
+workload_type: "Production"
+management_group_id: "corp"
+location: "japaneast"
+
+tags:
+  environment: "test"
+  cost_center: "test-10005"
+  owner: "platform-team"
+  system_name: "test-data"
+  architecture: "data-platform"
+
+alert_contacts:
+  - name: "Test Owner"
+    email_address: "test-owner@example.com"
+  - name: "Test On-Call"
+    email_address: "test-oncall@example.com"
+
+resource_groups:
+  network:
+    name: "rg-test-data-network"
+    location: "japaneast"
+  compute:
+    name: "rg-test-data-compute"
+    location: "japaneast"
+  data:
+    name: "rg-test-data-data"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-test-data"
+  resource_group_name: "rg-test-data-network"
+  address_space: ["10.202.0.0/23"]
+  hub_peering_enabled: true
+  use_hub_gateway: true
+  subnets:
+    - name: "snet-compute"
+      address_prefix: "10.202.0.0/25"
+    - name: "snet-dbw"
+      address_prefix: "10.202.0.128/25"
+    - name: "snet-data"
+      address_prefix: "10.202.1.0/26"
+    - name: "snet-pe"
+      address_prefix: "10.202.1.64/27"
+
+firewall_rules:
+  network_rules:
+    - name: "AllowComputeToStorage"
+      protocols: ["TCP"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      destination_addresses: ["10.202.1.0/26"]
+      destination_ports: ["443"]
+    - name: "AllowComputeToSQL"
+      protocols: ["TCP"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      destination_addresses: ["Sql.JapanEast"]
+      destination_ports: ["1433", "11000-11999"]
+    - name: "AllowComputeToEventHub"
+      protocols: ["TCP"]
+      source_addresses: ["10.202.0.0/25"]
+      destination_addresses: ["EventHub.JapanEast"]
+      destination_ports: ["5671", "5672", "443"]
+    - name: "AllowDatabricksControlPlane"
+      protocols: ["TCP"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      destination_addresses: ["AzureDatabricks"]
+      destination_ports: ["443"]
+    - name: "AllowComputeToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      destination_addresses: ["10.202.1.64/27"]
+      destination_ports: ["443"]
+  application_rules:
+    - name: "AllowDatabricksLibraries"
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "*.azuredatabricks.net"
+        - "dbartifactsprodseajp.blob.core.windows.net"
+        - "repo1.maven.org"
+        - "pypi.org"
+        - "files.pythonhosted.org"
+    - name: "AllowSynapseStudio"
+      source_addresses: ["10.202.0.0/25"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "web.azuresynapse.net"
+        - "*.dev.azuresynapse.net"
+        - "*.azuresynapse.net"
+    - name: "AllowStorageFQDN"
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "sttestdatalake.dfs.core.windows.net"
+        - "sttestdatalake.blob.core.windows.net"
