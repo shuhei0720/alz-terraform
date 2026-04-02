@@ -103,7 +103,7 @@ amba_alert_email = ["platform-team@example.com"]
 # Terraform state backend のストレージアカウントリソース ID
 # ガードレール強制化に伴い、state SA を Storage/CMK ポリシーから免除する。
 # 空文字の場合は免除を作成しない。
-terraform_state_storage_account_id = "/subscriptions/bec80a1b-7f04-462d-9299-149138ee0e8a/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/stterraformstate061f34c4"
+terraform_state_storage_account_id = "/subscriptions/bec80a1b-7f04-462d-9299-149138ee0e8a/resourceGroups/rg-terraform-state/providers/Microsoft.Storage/storageAccounts/stterraformstate312882b1"
 
 # =============================================================================
 # Subscription Vending
