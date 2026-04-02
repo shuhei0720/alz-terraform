@@ -1,0 +1,89 @@
+display_name: "test-template"
+subscription_id: "6c13fa88-55ef-484b-b56f-b049a47b22e1"
+workload_type: "Production"
+management_group_id: "corp"
+location: "japaneast"
+
+tags:
+  environment: "test"
+  cost_center: "test-10004"
+  owner: "platform-team"
+  system_name: "test-aks"
+  architecture: "aks-microservices"
+
+alert_contacts:
+  - name: "Test Owner"
+    email_address: "test-owner@example.com"
+  - name: "Test On-Call"
+    email_address: "test-oncall@example.com"
+
+resource_groups:
+  network:
+    name: "rg-test-aks-network"
+    location: "japaneast"
+  aks:
+    name: "rg-test-aks-aks"
+    location: "japaneast"
+  shared:
+    name: "rg-test-aks-shared"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-test-aks"
+  resource_group_name: "rg-test-aks-network"
+  address_space: ["10.201.0.0/22"]
+  hub_peering_enabled: true
+  use_hub_gateway: true
+  subnets:
+    - name: "snet-aks-system"
+      address_prefix: "10.201.0.0/24"
+    - name: "snet-aks-user"
+      address_prefix: "10.201.1.0/24"
+    - name: "snet-agw"
+      address_prefix: "10.201.2.0/26"
+    - name: "snet-pe"
+      address_prefix: "10.201.2.64/27"
+
+firewall_rules:
+  network_rules:
+    - name: "AllowAKSToSQL"
+      protocols: ["TCP"]
+      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
+      destination_addresses: ["Sql.JapanEast"]
+      destination_ports: ["1433"]
+    - name: "AllowAKSToRedis"
+      protocols: ["TCP"]
+      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
+      destination_addresses: ["10.201.2.64/27"]
+      destination_ports: ["6380"]
+    - name: "AllowAKSToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
+      destination_addresses: ["10.201.2.64/27"]
+      destination_ports: ["443"]
+  application_rules:
+    - name: "AllowACRPull"
+      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "testaksacr.azurecr.io"
+        - "testaksacr.japaneast.data.azurecr.io"
+    - name: "AllowExternalAPIs"
+      source_addresses: ["10.201.1.0/24"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns: ["api.example.com"]
+    - name: "AllowHelmRegistries"
+      source_addresses: ["10.201.0.0/24"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "ghcr.io"
+        - "*.githubusercontent.com"
+        - "charts.helm.sh"
+        - "get.helm.sh"
