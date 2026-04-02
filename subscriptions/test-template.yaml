@@ -6,10 +6,10 @@ location: "japaneast"
 
 tags:
   environment: "test"
-  cost_center: "test-10004"
+  cost_center: "test-10005"
   owner: "platform-team"
-  system_name: "test-aks"
-  architecture: "aks-microservices"
+  system_name: "test-data"
+  architecture: "data-platform"
 
 alert_contacts:
   - name: "Test Owner"
@@ -19,71 +19,85 @@ alert_contacts:
 
 resource_groups:
   network:
-    name: "rg-test-aks-network"
+    name: "rg-test-data-network"
     location: "japaneast"
-  aks:
-    name: "rg-test-aks-aks"
+  compute:
+    name: "rg-test-data-compute"
     location: "japaneast"
-  shared:
-    name: "rg-test-aks-shared"
+  data:
+    name: "rg-test-data-data"
     location: "japaneast"
 
 virtual_network:
   hub_key: "primary"
-  name: "vnet-test-aks"
-  resource_group_name: "rg-test-aks-network"
-  address_space: ["10.201.0.0/22"]
+  name: "vnet-test-data"
+  resource_group_name: "rg-test-data-network"
+  address_space: ["10.202.0.0/23"]
   hub_peering_enabled: true
   use_hub_gateway: true
   subnets:
-    - name: "snet-aks-system"
-      address_prefix: "10.201.0.0/24"
-    - name: "snet-aks-user"
-      address_prefix: "10.201.1.0/24"
-    - name: "snet-agw"
-      address_prefix: "10.201.2.0/26"
+    - name: "snet-compute"
+      address_prefix: "10.202.0.0/25"
+    - name: "snet-dbw"
+      address_prefix: "10.202.0.128/25"
+    - name: "snet-data"
+      address_prefix: "10.202.1.0/26"
     - name: "snet-pe"
-      address_prefix: "10.201.2.64/27"
+      address_prefix: "10.202.1.64/27"
 
 firewall_rules:
   network_rules:
-    - name: "AllowAKSToSQL"
+    - name: "AllowComputeToStorage"
       protocols: ["TCP"]
-      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      destination_addresses: ["10.202.1.0/26"]
+      destination_ports: ["443"]
+    - name: "AllowComputeToSQL"
+      protocols: ["TCP"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
       destination_addresses: ["Sql.JapanEast"]
-      destination_ports: ["1433"]
-    - name: "AllowAKSToRedis"
+      destination_ports: ["1433", "11000-11999"]
+    - name: "AllowComputeToEventHub"
       protocols: ["TCP"]
-      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
-      destination_addresses: ["10.201.2.64/27"]
-      destination_ports: ["6380"]
-    - name: "AllowAKSToKeyVault"
+      source_addresses: ["10.202.0.0/25"]
+      destination_addresses: ["EventHub.JapanEast"]
+      destination_ports: ["5671", "5672", "443"]
+    - name: "AllowDatabricksControlPlane"
       protocols: ["TCP"]
-      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
-      destination_addresses: ["10.201.2.64/27"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      destination_addresses: ["AzureDatabricks"]
+      destination_ports: ["443"]
+    - name: "AllowComputeToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      destination_addresses: ["10.202.1.64/27"]
       destination_ports: ["443"]
   application_rules:
-    - name: "AllowACRPull"
-      source_addresses: ["10.201.0.0/24", "10.201.1.0/24"]
+    - name: "AllowDatabricksLibraries"
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
       protocols:
         - type: "Https"
           port: 443
       destination_fqdns:
-        - "testaksacr.azurecr.io"
-        - "testaksacr.japaneast.data.azurecr.io"
-    - name: "AllowExternalAPIs"
-      source_addresses: ["10.201.1.0/24"]
-      protocols:
-        - type: "Https"
-          port: 443
-      destination_fqdns: ["api.example.com"]
-    - name: "AllowHelmRegistries"
-      source_addresses: ["10.201.0.0/24"]
+        - "*.azuredatabricks.net"
+        - "dbartifactsprodseajp.blob.core.windows.net"
+        - "repo1.maven.org"
+        - "pypi.org"
+        - "files.pythonhosted.org"
+    - name: "AllowSynapseStudio"
+      source_addresses: ["10.202.0.0/25"]
       protocols:
         - type: "Https"
           port: 443
       destination_fqdns:
-        - "ghcr.io"
-        - "*.githubusercontent.com"
-        - "charts.helm.sh"
-        - "get.helm.sh"
+        - "web.azuresynapse.net"
+        - "*.dev.azuresynapse.net"
+        - "*.azuresynapse.net"
+    - name: "AllowStorageFQDN"
+      source_addresses: ["10.202.0.0/25", "10.202.0.128/25"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "sttestdatalake.dfs.core.windows.net"
+        - "sttestdatalake.blob.core.windows.net"
