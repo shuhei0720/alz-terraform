@@ -1,0 +1,72 @@
+display_name: "test-webapp"
+# subscription_id 省略 → 新規作成
+workload_type: "Production"
+management_group_id: "corp"
+location: "japaneast"
+
+tags:
+  environment: "test"
+  cost_center: "test-10003"
+  owner: "platform-team"
+  system_name: "test-webapp"
+  architecture: "webapp-3tier"
+
+alert_contacts:
+  - name: "Test Owner"
+    email_address: "test-owner@example.com"
+  - name: "Test On-Call"
+    email_address: "test-oncall@example.com"
+
+resource_groups:
+  network:
+    name: "rg-test-webapp-network"
+    location: "japaneast"
+  application:
+    name: "rg-test-webapp-app"
+    location: "japaneast"
+  data:
+    name: "rg-test-webapp-data"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-test-webapp"
+  resource_group_name: "rg-test-webapp-network"
+  address_space: ["10.200.10.0/24"]
+  hub_peering_enabled: true
+  use_hub_gateway: true
+  subnets:
+    - name: "snet-app"
+      address_prefix: "10.200.10.0/26"
+    - name: "snet-data"
+      address_prefix: "10.200.10.64/26"
+    - name: "snet-pe"
+      address_prefix: "10.200.10.128/27"
+
+firewall_rules:
+  network_rules:
+    - name: "AllowAppToSQL"
+      protocols: ["TCP"]
+      source_addresses: ["10.200.10.0/26"]
+      destination_addresses: ["10.200.10.64/26"]
+      destination_ports: ["1433"]
+    - name: "AllowAppToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["10.200.10.0/26"]
+      destination_addresses: ["10.200.10.128/27"]
+      destination_ports: ["443"]
+  application_rules:
+    - name: "AllowExternalSaaSAPI"
+      source_addresses: ["10.200.10.0/26"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns: ["api.example.com"]
+    - name: "AllowPackageRegistries"
+      source_addresses: ["10.200.10.0/26"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "api.nuget.org"
+        - "registry.npmjs.org"
