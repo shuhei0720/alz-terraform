@@ -1,0 +1,179 @@
+# =============================================================================
+# Corp AI/ML Workload テンプレート
+# Azure Machine Learning ベースの学習・推論パイプライン
+# =============================================================================
+#
+# 構成:
+#   Azure ML Workspace + Compute Cluster/Instance + ADLS Gen2 + ACR + Key Vault
+#   GPU / CPU クラスターによるモデル学習 + マネージドオンライン推論エンドポイント
+#
+# ネットワーク設計:
+#   /23 = 512 IP — ML Compute は IP を多く消費する（ノード数 × 1 IP）
+#   ┌──────────────────────────────────────────────┐
+#   │ 10.204.0.0/23                                │
+#   ├───────────────────┬──────────────────────────┤
+#   │ snet-training /24 │ ML Compute Cluster       │
+#   │                   │ (GPU/CPU ノード)          │
+#   │ snet-scoring  /25 │ Managed Online Endpoint  │
+#   │                   │ (推論エンドポイント)       │
+#   │ snet-data     /26 │ ADLS / Storage PE        │
+#   │ snet-pe       /27 │ ML / ACR / Key Vault PE  │
+#   │ (予約)        /27 │ 将来拡張用               │
+#   └───────────────────┴──────────────────────────┘
+#
+# Hub Firewall で既に許可済み:
+#   - Azure Monitor / Log Analytics / Defender
+#   - AKS 関連 (ML Compute は内部的に AKS を使用)
+#   - Azure Portal / Entra ID / ARM
+#   - Ubuntu パッケージ, Windows Update
+#
+# 使い方:
+#   1. このファイルを subscriptions/ にコピー
+#   2. ファイル名を変更（例: demand-forecast.yaml, image-recognition.yaml）
+#   3. <...> のプレースホルダーをすべて書き換え
+#   4. git add & git commit でコミット
+#   5. git push → Pull Request を作成
+#   6. CI（terraform plan）の結果を確認
+#   7. PR をマージ → CD で自動 apply
+# =============================================================================
+
+display_name: "<サブスクリプション表示名>"
+# subscription_id: "<既存サブスクリプション ID>"
+workload_type: "Production"
+management_group_id: "corp"
+location: "japaneast"
+
+tags:
+  environment: "<production|staging|development>"
+  cost_center: "<コストセンター番号>"
+  owner: "<所有チーム名>"
+  system_name: "<システム名>"
+  architecture: "aiml-workspace"
+
+alert_contacts:
+  - name: "<ML エンジニアリングリーダー>"
+    email_address: "<ml-lead@example.com>"
+  - name: "<オンコール担当>"
+    email_address: "<oncall@example.com>"
+
+resource_groups:
+  network:
+    name: "rg-<システム名>-network"
+    location: "japaneast"
+  ml:
+    name: "rg-<システム名>-ml"
+    location: "japaneast"
+  data:
+    name: "rg-<システム名>-data"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-<システム名>"
+  resource_group_name: "rg-<システム名>-network"
+  address_space: ["<例: 10.204.0.0/23>"]
+  hub_peering_enabled: true
+  use_hub_gateway: true           # オンプレデータソースへのアクセスが必要な場合 true
+  subnets:
+    - name: "snet-training"
+      address_prefix: "<例: 10.204.0.0/24>"      # ML Compute Cluster
+    - name: "snet-scoring"
+      address_prefix: "<例: 10.204.1.0/25>"      # Managed Online Endpoint
+    - name: "snet-data"
+      address_prefix: "<例: 10.204.1.128/26>"    # ADLS / Storage PE
+    - name: "snet-pe"
+      address_prefix: "<例: 10.204.1.192/27>"    # ML / ACR / Key Vault PE
+
+# ---------------------------------------------------------------------------
+# Spoke 固有 Firewall ルール
+# ML Compute (AKS ベース) の基盤通信は Hub デフォルトで許可済み。
+# ここでは ML ワークロード固有の通信のみ定義。
+# ---------------------------------------------------------------------------
+firewall_rules:
+  network_rules:
+    # ML Compute → ADLS Gen2 (学習データ読み書き)
+    - name: "AllowMLToStorage"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-training CIDR>", "<snet-scoring CIDR>"]
+      destination_addresses: ["<snet-data CIDR>"]
+      destination_ports: ["443"]
+
+    # ML Compute → Key Vault PE (シークレット / 接続文字列)
+    - name: "AllowMLToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-training CIDR>", "<snet-scoring CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]
+      destination_ports: ["443"]
+
+    # ML Compute → Azure ML Service (Studio, experiments, metrics)
+    - name: "AllowMLToAzureML"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-training CIDR>", "<snet-scoring CIDR>"]
+      destination_addresses: ["AzureMachineLearning"]
+      destination_ports: ["443", "8787", "18881"]
+
+    # ML Compute → ACR PE (カスタム Docker イメージ)
+    - name: "AllowMLToACR"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-training CIDR>", "<snet-scoring CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]
+      destination_ports: ["443"]
+
+    # ML Compute → Azure Batch (Compute Cluster の内部実行基盤)
+    - name: "AllowMLToBatch"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-training CIDR>"]
+      destination_addresses: ["BatchNodeManagement.JapanEast"]
+      destination_ports: ["443", "29876", "29877"]
+
+  application_rules:
+    # Python パッケージ (PyPI / Conda) — 学習環境構築時に必要
+    - name: "AllowPythonPackages"
+      source_addresses: ["<snet-training CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "pypi.org"
+        - "files.pythonhosted.org"
+        - "conda.anaconda.org"
+        - "repo.anaconda.com"
+        - "*.anaconda.com"
+
+    # Hugging Face (事前学習モデルのダウンロード)
+    # 不要であれば削除してください
+    - name: "AllowHuggingFace"
+      source_addresses: ["<snet-training CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "huggingface.co"
+        - "*.huggingface.co"
+        - "cdn-lfs.huggingface.co"
+
+    # Azure ML Studio / Notebook (Web UI)
+    - name: "AllowAzureMLStudio"
+      source_addresses: ["<snet-training CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "ml.azure.com"
+        - "*.ml.azure.com"
+        - "*.notebooks.azure.net"
+        - "*.instances.azureml.net"
+        - "*.api.azureml.ms"
+
+    # Docker Hub (ベースイメージ取得 — ACR ミラーが無い場合)
+    # ACR の import 機能で Docker Hub ミラーを推奨。
+    # ミラー構成済みであれば削除してください。
+    - name: "AllowDockerHub"
+      source_addresses: ["<snet-training CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "*.docker.io"
+        - "production.cloudflare.docker.com"
+        - "*.docker.com"

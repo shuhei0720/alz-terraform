@@ -1,0 +1,122 @@
+# =============================================================================
+# Corp Web App (3-tier) テンプレート
+# 社内向けの業務 Web アプリケーション（人事、経費精算、在庫管理 等）
+# =============================================================================
+#
+# 構成:
+#   App Service (VNet 統合) + Azure SQL Database + Key Vault
+#   すべて Private Endpoint 経由のプライベート通信
+#
+# ネットワーク設計:
+#   /24 = 256 IP を 4 サブネットに分割
+#   ┌─────────────────────────────────────────────┐
+#   │ 10.200.x.0/24                               │
+#   ├──────────────────┬─────────────────── ───────┤
+#   │ snet-app   /26   │ App Service VNet 統合     │
+#   │ snet-data  /26   │ Azure SQL PE              │
+#   │ snet-pe    /27   │ Key Vault / Storage PE    │
+#   │ (予約)     /27   │ 将来拡張用                │
+#   └──────────────────┴──────────────────── ──────┘
+#
+# Hub Firewall で既に許可済み（YAML に書く必要なし）:
+#   - DNS (53), KMS (1688)
+#   - Azure Monitor Agent → AzureMonitor / AzureResourceManager
+#   - Azure Portal / Entra ID / ARM
+#   - Windows Update, Ubuntu パッケージ
+#   - Defender for Containers / Log Analytics
+#
+# 使い方:
+#   1. このファイルを subscriptions/ にコピー
+#   2. ファイル名を変更（例: hr-system.yaml, expense-app.yaml）
+#   3. <...> のプレースホルダーをすべて書き換え
+#   4. git add & git commit でコミット
+#   5. git push → Pull Request を作成
+#   6. CI（terraform plan）の結果を確認
+#   7. PR をマージ → CD で自動 apply
+# =============================================================================
+
+display_name: "<サブスクリプション表示名>"
+# subscription_id: "<既存サブスクリプション ID>"  # 省略時は新規作成
+workload_type: "Production"
+management_group_id: "corp"
+location: "japaneast"
+
+tags:
+  environment: "<production|staging|development>"
+  cost_center: "<コストセンター番号>"
+  owner: "<所有チーム名>"
+  system_name: "<システム名>"
+  architecture: "webapp-3tier"
+
+alert_contacts:
+  - name: "<システム管理者名>"
+    email_address: "<admin@example.com>"
+  - name: "<オンコール担当名>"
+    email_address: "<oncall@example.com>"
+
+resource_groups:
+  network:
+    name: "rg-<システム名>-network"
+    location: "japaneast"
+  application:
+    name: "rg-<システム名>-app"
+    location: "japaneast"
+  data:
+    name: "rg-<システム名>-data"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-<システム名>"
+  resource_group_name: "rg-<システム名>-network"
+  address_space: ["<例: 10.200.10.0/24>"]
+  hub_peering_enabled: true
+  use_hub_gateway: true           # オンプレ接続が必要な場合 true
+  subnets:
+    - name: "snet-app"
+      address_prefix: "<例: 10.200.10.0/26>"     # App Service VNet 統合
+    - name: "snet-data"
+      address_prefix: "<例: 10.200.10.64/26>"    # Azure SQL Private Endpoint
+    - name: "snet-pe"
+      address_prefix: "<例: 10.200.10.128/27>"   # Key Vault / Storage PE
+
+# ---------------------------------------------------------------------------
+# Spoke 固有 Firewall ルール
+# Hub デフォルトで Azure 管理系は許可済み。ここではアプリ固有の通信のみ定義。
+# ---------------------------------------------------------------------------
+firewall_rules:
+  network_rules:
+    # App Service → Azure SQL (Private Endpoint 経由だが FW ルートのため許可が必要)
+    - name: "AllowAppToSQL"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-app CIDR>"]       # 例: 10.200.10.0/26
+      destination_addresses: ["<snet-data CIDR>"]  # 例: 10.200.10.64/26
+      destination_ports: ["1433"]
+
+    # App Service → Key Vault PE サブネット (HTTPS)
+    - name: "AllowAppToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-app CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]    # 例: 10.200.10.128/27
+      destination_ports: ["443"]
+
+  application_rules:
+    # App Service → 外部 SaaS API（業務連携先がある場合のみ）
+    # 不要であれば削除してください
+    - name: "AllowExternalSaaSAPI"
+      source_addresses: ["<snet-app CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns: ["<連携先 API の FQDN>"]   # 例: api.example.com
+
+    # App Service → NuGet / npm パッケージレジストリ（CI/CD ビルド時）
+    # App Service のビルド機能を使う場合に必要
+    - name: "AllowPackageRegistries"
+      source_addresses: ["<snet-app CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "api.nuget.org"
+        - "registry.npmjs.org"

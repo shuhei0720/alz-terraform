@@ -1,0 +1,159 @@
+# =============================================================================
+# Corp Data Platform テンプレート
+# データ分析基盤（DWH / ETL / レポーティング）
+# =============================================================================
+#
+# 構成:
+#   Synapse Analytics or Databricks + ADLS Gen2 + Event Hub + Key Vault
+#   すべて Private Endpoint 経由。大量データ転送を想定。
+#
+# ネットワーク設計:
+#   /23 = 512 IP — Databricks は最低 /26×2 (inject用) が必要
+#   ┌──────────────────────────────────────────────┐
+#   │ 10.202.0.0/23                                │
+#   ├───────────────────┬──────────────────────────┤
+#   │ snet-compute  /25 │ Synapse Managed VNet /   │
+#   │                   │ Databricks host subnet   │
+#   │ snet-dbw      /25 │ Databricks container     │
+#   │                   │ subnet (VNet Injection)  │
+#   │ snet-data     /26 │ ADLS / Storage PE        │
+#   │ snet-pe       /27 │ Synapse / Key Vault PE   │
+#   │ (予約)        /27 │ 将来拡張用               │
+#   └───────────────────┴──────────────────────────┘
+#
+# Hub Firewall で既に許可済み:
+#   - Azure Monitor / Log Analytics / Defender
+#   - Azure Portal / Entra ID / ARM
+#   - DNS, KMS, Windows Update, Ubuntu パッケージ
+#
+# 使い方:
+#   1. このファイルを subscriptions/ にコピー
+#   2. ファイル名を変更（例: sales-analytics.yaml, iot-datalake.yaml）
+#   3. <...> のプレースホルダーをすべて書き換え
+#   4. git add & git commit でコミット
+#   5. git push → Pull Request を作成
+#   6. CI（terraform plan）の結果を確認
+#   7. PR をマージ → CD で自動 apply
+# =============================================================================
+
+display_name: "<サブスクリプション表示名>"
+# subscription_id: "<既存サブスクリプション ID>"
+workload_type: "Production"
+management_group_id: "corp"
+location: "japaneast"
+
+tags:
+  environment: "<production|staging|development>"
+  cost_center: "<コストセンター番号>"
+  owner: "<所有チーム名>"
+  system_name: "<システム名>"
+  architecture: "data-platform"
+
+alert_contacts:
+  - name: "<データエンジニアリングチームリーダー>"
+    email_address: "<data-lead@example.com>"
+  - name: "<オンコール担当>"
+    email_address: "<oncall@example.com>"
+
+resource_groups:
+  network:
+    name: "rg-<システム名>-network"
+    location: "japaneast"
+  compute:
+    name: "rg-<システム名>-compute"
+    location: "japaneast"
+  data:
+    name: "rg-<システム名>-data"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-<システム名>"
+  resource_group_name: "rg-<システム名>-network"
+  address_space: ["<例: 10.202.0.0/23>"]
+  hub_peering_enabled: true
+  use_hub_gateway: true           # オンプレ DB からのデータ取り込みに必要
+  subnets:
+    - name: "snet-compute"
+      address_prefix: "<例: 10.202.0.0/25>"      # Synapse / Databricks host
+    - name: "snet-dbw"
+      address_prefix: "<例: 10.202.0.128/25>"    # Databricks container (VNet Injection)
+    - name: "snet-data"
+      address_prefix: "<例: 10.202.1.0/26>"      # ADLS / Storage PE
+    - name: "snet-pe"
+      address_prefix: "<例: 10.202.1.64/27>"     # Synapse / Key Vault PE
+
+# ---------------------------------------------------------------------------
+# Spoke 固有 Firewall ルール
+# ---------------------------------------------------------------------------
+firewall_rules:
+  network_rules:
+    # Synapse / Databricks → ADLS Gen2 (Storage PE サブネット)
+    - name: "AllowComputeToStorage"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-compute CIDR>", "<snet-dbw CIDR>"]
+      destination_addresses: ["<snet-data CIDR>"]
+      destination_ports: ["443"]
+
+    # Synapse / Databricks → Azure SQL (メタストア / DWH)
+    - name: "AllowComputeToSQL"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-compute CIDR>", "<snet-dbw CIDR>"]
+      destination_addresses: ["Sql.JapanEast"]
+      destination_ports: ["1433", "11000-11999"]    # Redirect モード対応
+
+    # Event Hub (データ取り込み用 — Service Tag)
+    - name: "AllowComputeToEventHub"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-compute CIDR>"]
+      destination_addresses: ["EventHub.JapanEast"]
+      destination_ports: ["5671", "5672", "443"]
+
+    # Databricks Control Plane (VNet Injection 必須)
+    - name: "AllowDatabricksControlPlane"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-compute CIDR>", "<snet-dbw CIDR>"]
+      destination_addresses: ["AzureDatabricks"]
+      destination_ports: ["443"]
+
+    # Key Vault PE (暗号化キー / 接続文字列)
+    - name: "AllowComputeToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-compute CIDR>", "<snet-dbw CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]
+      destination_ports: ["443"]
+
+  application_rules:
+    # Databricks Artifact / Maven / PyPI（ライブラリインストール）
+    - name: "AllowDatabricksLibraries"
+      source_addresses: ["<snet-compute CIDR>", "<snet-dbw CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "*.azuredatabricks.net"
+        - "dbartifactsprodseajp.blob.core.windows.net"
+        - "repo1.maven.org"
+        - "pypi.org"
+        - "files.pythonhosted.org"
+
+    # Synapse Studio（Web UI アクセス時に必要）
+    - name: "AllowSynapseStudio"
+      source_addresses: ["<snet-compute CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "web.azuresynapse.net"
+        - "*.dev.azuresynapse.net"
+        - "*.azuresynapse.net"
+
+    # ADLS Gen2 / Storage（FQDN 指定 — PE 経由だが DNS 解決用）
+    - name: "AllowStorageFQDN"
+      source_addresses: ["<snet-compute CIDR>", "<snet-dbw CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "<ストレージアカウント名>.dfs.core.windows.net"
+        - "<ストレージアカウント名>.blob.core.windows.net"

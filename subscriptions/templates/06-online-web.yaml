@@ -1,0 +1,151 @@
+# =============================================================================
+# Online Public Web テンプレート
+# インターネット公開 Web サービス（EC サイト、ポータル、SaaS フロントエンド）
+# =============================================================================
+#
+# 構成:
+#   Front Door (CDN + WAF) → App Service + Functions + Cosmos DB
+#   フロントエンドはグローバル分散、バックエンドは Private Endpoint 経由
+#
+# ネットワーク設計:
+#   /24 = 256 IP — App Service + Functions + PE で十分
+#   ┌──────────────────────────────────────────────┐
+#   │ 10.203.0.0/24                                │
+#   ├───────────────────┬──────────────────────────┤
+#   │ snet-frontend /26 │ App Service VNet 統合     │
+#   │ snet-backend  /26 │ Functions VNet 統合       │
+#   │ snet-data     /27 │ Cosmos DB / Storage PE   │
+#   │ snet-pe       /27 │ Key Vault / Redis PE     │
+#   └───────────────────┴──────────────────────────┘
+#
+# オンプレ接続: 不要（use_hub_gateway: false）
+# Front Door: Azure 管理 → App Service のアクセス制限で Front Door のみ許可
+#
+# Hub Firewall で既に許可済み:
+#   - Azure Monitor / Log Analytics / Defender
+#   - Azure Portal / Entra ID / ARM / Front Door
+#   - DNS, KMS, Windows Update, Ubuntu パッケージ
+#
+# 使い方:
+#   1. このファイルを subscriptions/ にコピー
+#   2. ファイル名を変更（例: ec-site.yaml, customer-portal.yaml）
+#   3. <...> のプレースホルダーをすべて書き換え
+#   4. git add & git commit でコミット
+#   5. git push → Pull Request を作成
+#   6. CI（terraform plan）の結果を確認
+#   7. PR をマージ → CD で自動 apply
+# =============================================================================
+
+display_name: "<サブスクリプション表示名>"
+# subscription_id: "<既存サブスクリプション ID>"
+workload_type: "Production"
+management_group_id: "online"
+location: "japaneast"
+
+tags:
+  environment: "<production|staging|development>"
+  cost_center: "<コストセンター番号>"
+  owner: "<所有チーム名>"
+  system_name: "<システム名>"
+  architecture: "online-web"
+
+alert_contacts:
+  - name: "<サービスオーナー>"
+    email_address: "<service-owner@example.com>"
+  - name: "<SRE オンコール>"
+    email_address: "<sre-oncall@example.com>"
+
+resource_groups:
+  network:
+    name: "rg-<システム名>-network"
+    location: "japaneast"
+  application:
+    name: "rg-<システム名>-app"
+    location: "japaneast"
+  data:
+    name: "rg-<システム名>-data"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-<システム名>"
+  resource_group_name: "rg-<システム名>-network"
+  address_space: ["<例: 10.203.0.0/24>"]
+  hub_peering_enabled: true
+  use_hub_gateway: false          # オンプレ接続不要
+  subnets:
+    - name: "snet-frontend"
+      address_prefix: "<例: 10.203.0.0/26>"      # App Service VNet 統合
+    - name: "snet-backend"
+      address_prefix: "<例: 10.203.0.64/26>"     # Functions VNet 統合
+    - name: "snet-data"
+      address_prefix: "<例: 10.203.0.128/27>"    # Cosmos DB / Storage PE
+    - name: "snet-pe"
+      address_prefix: "<例: 10.203.0.160/27>"    # Key Vault / Redis PE
+
+# ---------------------------------------------------------------------------
+# Spoke 固有 Firewall ルール
+# Online MG = インターネット公開サービス向け。Hub FW 経由の外部通信を許可。
+# ---------------------------------------------------------------------------
+firewall_rules:
+  network_rules:
+    # Backend Functions → Cosmos DB PE
+    - name: "AllowBackendToCosmos"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-backend CIDR>"]
+      destination_addresses: ["<snet-data CIDR>"]
+      destination_ports: ["443"]
+
+    # Backend Functions → Redis Cache PE (セッション / レートリミット)
+    - name: "AllowBackendToRedis"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-backend CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]
+      destination_ports: ["6380"]
+
+    # Frontend → Backend (サブネット間通信)
+    - name: "AllowFrontendToBackend"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-frontend CIDR>"]
+      destination_addresses: ["<snet-backend CIDR>"]
+      destination_ports: ["443"]
+
+    # Frontend / Backend → Key Vault PE
+    - name: "AllowAppToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-frontend CIDR>", "<snet-backend CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]
+      destination_ports: ["443"]
+
+  application_rules:
+    # Backend → 外部決済 / 通知サービス（Stripe, SendGrid 等）
+    # 利用するサービスに応じて FQDN を追加・変更してください
+    - name: "AllowPaymentGateway"
+      source_addresses: ["<snet-backend CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "api.stripe.com"
+        - "api.sendgrid.com"
+
+    # Backend → 外部 OAuth プロバイダー（ソーシャルログイン用）
+    # 不要であれば削除してください
+    - name: "AllowOAuthProviders"
+      source_addresses: ["<snet-backend CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "accounts.google.com"
+        - "graph.facebook.com"
+        - "appleid.apple.com"
+
+    # Frontend → npm レジストリ（SSR ビルド時）
+    - name: "AllowNpmRegistry"
+      source_addresses: ["<snet-frontend CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "registry.npmjs.org"
