@@ -1,5 +1,5 @@
 display_name: "test-webapp"
-# subscription_id 省略 → 新規作成
+subscription_id: "6c13fa88-55ef-484b-b56f-b049a47b22e1"
 workload_type: "Production"
 management_group_id: "corp"
 location: "japaneast"
