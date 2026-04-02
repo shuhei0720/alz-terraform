@@ -229,6 +229,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Pre-Destroy Cleanup
+        continue-on-error: true
         env:
           BLOB_LIST_PY: |
             import json, sys, urllib.parse
@@ -304,7 +305,8 @@ jobs:
               --resource-group "$RG_NAME" \
               --workspace-name "$LAW_NAME" \
               --name "export-to-archive" --yes 2>/dev/null || true
-            sleep 15
+            echo "Waiting 60s for in-flight export operations to complete..."
+            sleep 60
           fi
 
           # 2. パブリックアクセス有効化 + アカウントキー取得
@@ -321,11 +323,11 @@ jobs:
             --enable-container-delete-retention false \
             --output none 2>/dev/null || true
 
-          # 4. Blob の不変性ポリシー解除 + 全削除 (REST API)
-          #    az CLI 2.84+ で --version-id 廃止のため curl + SAS で操作
-          #    正しい REST API パラメータ: comp=immutabilityPolicies (camelCase)
-          #    URL エンコード: safe='/=' で = をエンコードしない
-          #    SAS 権限: dlrwixy (x=permanent delete が必要)
+          # 4. Blob の不変性ポリシー解除 + 全削除 (REST API, リトライ付き)
+          #    - --include vd: versions(v) + soft-deleted(d) を含む全 Blob を対象
+          #    - リトライ: Data Export のインフライト書き込みで後から Blob が現れる場合に対応
+          #    - 3 パス: 不変性解除 → Blob/version 削除 → ソフトデリート永久削除
+          #    - SAS 権限: dlrwixy (x=permanent delete が必要)
           SAS=$(az storage account generate-sas \
             --account-name "$SA_NAME" --account-key "$KEY" \
             --permissions dlrwixy --services b --resource-types sco \
@@ -336,57 +338,78 @@ jobs:
           CONTAINERS=$(az storage container list --account-name "$SA_NAME" \
             --account-key "$KEY" --query "[].name" -o tsv 2>/dev/null || echo "")
 
+          MAX_ATTEMPTS=5
+          RETRY_DELAY=30
+
           for C in $CONTAINERS; do
             echo "  Processing container: $C"
 
-            BLOBS=$(az storage blob list -c "$C" --account-name "$SA_NAME" \
-              --account-key "$KEY" --include v --num-results '*' -o json 2>/dev/null || echo "[]")
-            TOTAL=$(echo "$BLOBS" | jq length)
+            for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
+              # 毎回再リスト（インフライト書き込みで後から現れる Blob を捕捉）
+              BLOBS=$(az storage blob list -c "$C" --account-name "$SA_NAME" \
+                --account-key "$KEY" --include vd --num-results '*' -o json 2>/dev/null || echo "[]")
+              TOTAL=$(echo "$BLOBS" | jq length)
 
-            if [[ "$TOTAL" -eq 0 ]]; then
-              echo "    Empty — skipping"
-              continue
-            fi
+              if [[ "$TOTAL" -eq 0 ]]; then
+                echo "    Container $C is empty"
+                break
+              fi
 
-            BLOB_LIST=$(echo "$BLOBS" | python3 -c "$BLOB_LIST_PY" 2>/dev/null || true)
-            if [[ -z "$BLOB_LIST" ]]; then
-              echo "    No blobs to process"
-              continue
-            fi
-            BLOB_COUNT=$(echo "$BLOB_LIST" | wc -l)
+              echo "    Attempt $ATTEMPT/$MAX_ATTEMPTS: $TOTAL blobs to process"
 
-            # --- Pass 1: root blob の不変性ポリシー削除 + root blob 削除 ---
-            # root blob が残っている場合、先に削除しないと version を削除できない
-            # (OperationNotAllowedOnRootBlob)
-            echo "    Pass 1: Deleting root blobs (immutability + blob) ..."
-            echo "$BLOB_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
-              [[ -z "$ENC_NAME" ]] && continue
-              # root blob の不変性削除（root が無ければ 404 → 無視）
-              curl -sf -o /dev/null -X DELETE \
-                "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutabilityPolicies&${SAS}" \
-                -H "$API_VER" 2>/dev/null || true
-              # root blob 削除（root が無ければ 404 → 無視）
-              curl -sf -o /dev/null -X DELETE \
-                "${BLOB_EP}/${C}/${ENC_NAME}?${SAS}" \
-                -H "$API_VER" 2>/dev/null || true
+              BLOB_LIST=$(echo "$BLOBS" | python3 -c "$BLOB_LIST_PY" 2>/dev/null || true)
+              [[ -z "$BLOB_LIST" ]] && break
+
+              # --- Pass 1: 不変性ポリシー削除（root + version） ---
+              echo "    Pass 1: Removing immutability policies ..."
+              echo "$BLOB_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
+                [[ -z "$ENC_NAME" ]] && continue
+                curl -s -o /dev/null -X DELETE \
+                  "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutabilityPolicies&${SAS}" \
+                  -H "$API_VER" 2>/dev/null || true
+                [[ -n "$ENC_VID" ]] && curl -s -o /dev/null -X DELETE \
+                  "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutabilityPolicies&versionid=${ENC_VID}&${SAS}" \
+                  -H "$API_VER" 2>/dev/null || true
+              done
+
+              # --- Pass 2: root blob + version 削除 ---
+              echo "    Pass 2: Deleting blobs and versions ..."
+              echo "$BLOB_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
+                [[ -z "$ENC_NAME" ]] && continue
+                curl -s -o /dev/null -X DELETE \
+                  "${BLOB_EP}/${C}/${ENC_NAME}?${SAS}" \
+                  -H "$API_VER" 2>/dev/null || true
+                [[ -n "$ENC_VID" ]] && curl -s -o /dev/null -X DELETE \
+                  "${BLOB_EP}/${C}/${ENC_NAME}?versionid=${ENC_VID}&${SAS}" \
+                  -H "$API_VER" 2>/dev/null || true
+              done
+
+              # --- Pass 3: ソフトデリート済み Blob の永久削除 ---
+              echo "    Pass 3: Permanently deleting soft-deleted blobs ..."
+              echo "$BLOB_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
+                [[ -z "$ENC_NAME" ]] && continue
+                curl -s -o /dev/null -X DELETE \
+                  "${BLOB_EP}/${C}/${ENC_NAME}?deletetype=permanent&${SAS}" \
+                  -H "$API_VER" 2>/dev/null || true
+                [[ -n "$ENC_VID" ]] && curl -s -o /dev/null -X DELETE \
+                  "${BLOB_EP}/${C}/${ENC_NAME}?versionid=${ENC_VID}&deletetype=permanent&${SAS}" \
+                  -H "$API_VER" 2>/dev/null || true
+              done
+
+              # 残留確認
+              REMAINING=$(az storage blob list -c "$C" --account-name "$SA_NAME" \
+                --account-key "$KEY" --include vd --num-results '*' --query "length(@)" -o tsv 2>/dev/null || echo "0")
+              echo "    Attempt $ATTEMPT: $REMAINING blobs remaining"
+
+              if [[ "$REMAINING" == "0" ]]; then
+                break
+              fi
+
+              if [[ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]]; then
+                echo "    Waiting ${RETRY_DELAY}s before retry..."
+                sleep $RETRY_DELAY
+              fi
             done
-
-            # --- Pass 2: version の不変性ポリシー削除 + version 削除 ---
-            echo "    Pass 2: Deleting $BLOB_COUNT versions (immutability + version) ..."
-            echo "$BLOB_LIST" | while IFS=$'\t' read -r ENC_VID ENC_NAME; do
-              [[ -z "$ENC_VID" || -z "$ENC_NAME" ]] && continue
-              curl -sf -o /dev/null -X DELETE \
-                "${BLOB_EP}/${C}/${ENC_NAME}?comp=immutabilityPolicies&versionid=${ENC_VID}&${SAS}" \
-                -H "$API_VER" 2>/dev/null || true
-              curl -sf -o /dev/null -X DELETE \
-                "${BLOB_EP}/${C}/${ENC_NAME}?versionid=${ENC_VID}&${SAS}" \
-                -H "$API_VER" 2>/dev/null || true
-            done
-
-            # 残留確認
-            REMAINING=$(az storage blob list -c "$C" --account-name "$SA_NAME" \
-              --account-key "$KEY" --include v --num-results '*' --query "length(@)" -o tsv 2>/dev/null || echo "?")
-            echo "    Container $C: $TOTAL blobs processed, $REMAINING remaining"
           done
 
           # 5. バージョニング無効化
@@ -395,22 +418,26 @@ jobs:
             --enable-versioning false \
             --output none 2>/dev/null || true
 
-          # 6. コンテナ削除（管理プレーン）
+          # 6. コンテナ削除（リトライ付き）
           for C in $CONTAINERS; do
-            az storage container-rm delete \
-              --storage-account "$SA_NAME" -g "$RG_NAME" -n "$C" --yes 2>&1 || true
+            for i in 1 2 3; do
+              az storage container-rm delete \
+                --storage-account "$SA_NAME" -g "$RG_NAME" -n "$C" --yes 2>/dev/null && break
+              echo "    Container $C delete attempt $i failed — retrying in 10s..."
+              sleep 10
+            done
           done
 
           # 7. Storage Account 削除
-          az storage account delete -n "$SA_NAME" -g "$RG_NAME" --yes 2>&1
+          az storage account delete -n "$SA_NAME" -g "$RG_NAME" --yes 2>&1 || true
           sleep 5
           if az storage account show -n "$SA_NAME" -g "$RG_NAME" -o none 2>/dev/null; then
-            echo "::error::Storage Account $SA_NAME still exists — manual intervention required"
+            echo "::warning::Storage Account $SA_NAME still exists — removing from state (orphaned in Azure)"
           else
             echo "::notice::Storage Account $SA_NAME deleted"
           fi
 
-          # 8. state から law_archive + data_export 関連リソースを除外
+          # 8. state から law_archive + data_export 関連リソースを除外（常に実行）
           for res in $(terraform state list 2>/dev/null | grep 'law_archive\|law_data_export'); do
             terraform state rm "$res" || true
           done
