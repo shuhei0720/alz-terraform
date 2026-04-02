@@ -115,8 +115,13 @@ alz-terraform/
 ├── subscriptions/
 │   ├── test-subscription.yaml             # テスト用サブスクリプション
 │   └── templates/
-│       ├── corp-template.yaml             # Corp 用テンプレート
-│       └── online-template.yaml           # Online 用テンプレート
+│       ├── 01-corp.yaml                   # Corp 汎用テンプレート
+│       ├── 02-online.yaml                 # Online 汎用テンプレート
+│       ├── 03-corp-webapp.yaml            # Corp 3-tier Web App（App Service + SQL + KV）
+│       ├── 04-corp-aks.yaml               # Corp AKS マイクロサービス（AKS + ACR + AGIC）
+│       ├── 05-corp-data.yaml              # Corp データ分析基盤（Synapse/Databricks + ADLS）
+│       ├── 06-online-web.yaml             # Online 公開 Web（Front Door + App Service + Cosmos）
+│       └── 07-corp-aiml.yaml              # Corp AI/ML（Azure ML + ADLS + ACR）
 │
 │  ── プラットフォーム設定 ────────────────────────────────────
 ├── dns-forwarding-rules.yaml              # DNS アウトバウンド転送ルール（全 Hub 共通）
@@ -1054,23 +1059,39 @@ policy_exemptions:
 [参考：サブスクリプションの自動販売の実装ガイダンス](https://learn.microsoft.com/ja-jp/azure/architecture/landing-zones/subscription-vending)
 
 ### 手順
-例として、bashスクリプトでサブスクリプションを払い出してみます。
 
 ```bash
-# 1. テンプレートをコピー
-cp subscriptions/templates/corp-template.yaml subscriptions/my-system.yaml
+# 1. ワークロードに合ったテンプレートを選んでコピー
+cp subscriptions/templates/01-corp.yaml subscriptions/my-system.yaml
 
 # 2. YAML を編集（表示名、IP 範囲等を記入）
 #    subscription_id は省略 → 新規作成されます
 #    既存サブスクリプションを使う場合は subscription_id を記入
 vim subscriptions/my-system.yaml
 
-# 3. デプロイ
-terraform plan    # 何が作られるか確認
-terraform apply   # 実際に作成
+# 3. コミット → PR → merge で自動デプロイ
+git add subscriptions/my-system.yaml
+git commit -m "feat: add my-system subscription"
+git push origin feat/my-system
+# GitHub で Pull Request を作成 → CI (terraform plan) を確認 → マージ → CD で自動 apply
 ```
 
-**Terraform コードの編集は一切不要です。** YAML を追加するだけで以下が自動作成されます。
+**Terraform コードの編集は一切不要です。** YAML を追加して PR をマージするだけで以下が自動作成されます。
+
+### テンプレート一覧
+
+| # | ファイル | MG | ユースケース | VNet サイズ |
+|:--|:---|:---|:---|:---|
+| 01 | `01-corp.yaml` | Corp | 汎用（社内業務システム全般） | /24 |
+| 02 | `02-online.yaml` | Online | 汎用（インターネット公開サービス全般） | /24 |
+| 03 | `03-corp-webapp.yaml` | Corp | 3-tier Web App（App Service + SQL + KV） | /24 |
+| 04 | `04-corp-aks.yaml` | Corp | AKS マイクロサービス（AKS + ACR + AGIC） | /22 |
+| 05 | `05-corp-data.yaml` | Corp | データ分析基盤（Synapse/Databricks + ADLS） | /23 |
+| 06 | `06-online-web.yaml` | Online | 公開 Web（Front Door + App Service + Cosmos） | /24 |
+| 07 | `07-corp-aiml.yaml` | Corp | AI/ML（Azure ML + ADLS + ACR + Compute） | /23 |
+
+各テンプレートには、ワークロード固有のサブネット設計・Firewall ルール・リソースグループ構成が含まれています。
+Hub Firewall のデフォルトルール（DNS, KMS, Azure Monitor, AKS 基盤通信等）と重複しない、Spoke 固有の通信のみ定義されています。
 
 ### サブスクリプションの作成と既存利用
 
@@ -1743,12 +1764,14 @@ terraform apply tfplan         # デプロイ実行（約 45〜55 分）
 
 ```bash
 # テンプレートをコピーして編集
-cp subscriptions/templates/corp-template.yaml subscriptions/hr-system.yaml
+cp subscriptions/templates/01-corp.yaml subscriptions/hr-system.yaml
 vim subscriptions/hr-system.yaml
 
-# デプロイ
-terraform plan    # 追加されるリソースを確認
-terraform apply   # デプロイ
+# コミット → PR → CI 確認 → マージ → CD 自動 apply
+git add subscriptions/hr-system.yaml
+git commit -m "feat: add hr-system subscription"
+git push origin feat/hr-system
+# GitHub で PR 作成 → CI plan 確認 → マージで自動デプロイ
 ```
 
 ---
