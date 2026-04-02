@@ -1,0 +1,145 @@
+# =============================================================================
+# Corp AKS Microservices テンプレート
+# コンテナベースのマイクロサービス基盤（内部 API / バックエンド処理）
+# =============================================================================
+#
+# 構成:
+#   AKS (CNI Overlay) + ACR + Key Vault + Application Gateway (AGIC)
+#   内部ロードバランサー経由でオンプレ/他 Spoke からアクセス
+#
+# ネットワーク設計:
+#   /22 = 1024 IP — AKS は Pod 数に応じて大きなサブネットが必要
+#   ┌──────────────────────────────────────────────┐
+#   │ 10.201.0.0/22                                │
+#   ├───────────────────┬──────────────────────────┤
+#   │ snet-aks-system /24│ AKS System ノードプール  │
+#   │ snet-aks-user  /24│ AKS User ノードプール    │
+#   │ snet-agw       /26│ Application Gateway      │
+#   │ snet-pe        /27│ ACR / Key Vault PE       │
+#   │ (予約)         /27│ 将来拡張用               │
+#   └───────────────────┴──────────────────────────┘
+#
+#   ※ CNI Overlay モード利用時は Pod CIDR が VNet 外なのでサブネットは
+#     ノード数基準で十分。CNI (non-overlay) の場合は Pod 数 × ノード数分
+#     必要なため /22 以上を推奨。
+#
+# Hub Firewall で既に許可済み:
+#   - AKS API Server (9000/TCP), NTP (123/UDP), Tunnel (1194/UDP)
+#   - AKS FQDN Tag (mcr.microsoft.com, *.data.mcr.microsoft.com 等)
+#   - Azure Monitor, Defender for Containers, Log Analytics
+#   - Ubuntu パッケージ, Windows Update
+#
+# 使い方:
+#   1. このファイルを subscriptions/ にコピー
+#   2. ファイル名を変更（例: order-api.yaml, payment-service.yaml）
+#   3. <...> をすべて書き換え
+#   4. terraform plan → apply
+# =============================================================================
+
+display_name: "<サブスクリプション表示名>"
+# subscription_id: "<既存サブスクリプション ID>"
+workload_type: "Production"
+management_group_id: "corp"
+location: "japaneast"
+
+tags:
+  environment: "<production|staging|development>"
+  cost_center: "<コストセンター番号>"
+  owner: "<所有チーム名>"
+  system_name: "<システム名>"
+  architecture: "aks-microservices"
+
+alert_contacts:
+  - name: "<SRE チームリーダー>"
+    email_address: "<sre-lead@example.com>"
+  - name: "<オンコール担当>"
+    email_address: "<oncall@example.com>"
+
+resource_groups:
+  network:
+    name: "rg-<システム名>-network"
+    location: "japaneast"
+  aks:
+    name: "rg-<システム名>-aks"
+    location: "japaneast"
+  shared:
+    name: "rg-<システム名>-shared"
+    location: "japaneast"
+
+virtual_network:
+  hub_key: "primary"
+  name: "vnet-<システム名>"
+  resource_group_name: "rg-<システム名>-network"
+  address_space: ["<例: 10.201.0.0/22>"]
+  hub_peering_enabled: true
+  use_hub_gateway: true           # オンプレ API 連携が必要な場合 true
+  subnets:
+    - name: "snet-aks-system"
+      address_prefix: "<例: 10.201.0.0/24>"      # AKS System ノードプール
+    - name: "snet-aks-user"
+      address_prefix: "<例: 10.201.1.0/24>"      # AKS User ノードプール
+    - name: "snet-agw"
+      address_prefix: "<例: 10.201.2.0/26>"      # Application Gateway (AGIC)
+    - name: "snet-pe"
+      address_prefix: "<例: 10.201.2.64/27>"     # ACR / Key Vault PE
+
+# ---------------------------------------------------------------------------
+# Spoke 固有 Firewall ルール
+# AKS 基盤通信は Hub デフォルトで許可済み。ここではアプリ固有の通信のみ。
+# ---------------------------------------------------------------------------
+firewall_rules:
+  network_rules:
+    # AKS → Azure SQL (他 Spoke or PaaS の DB に接続する場合)
+    - name: "AllowAKSToSQL"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-aks-system CIDR>", "<snet-aks-user CIDR>"]
+      destination_addresses: ["Sql.JapanEast"]    # Service Tag
+      destination_ports: ["1433"]
+
+    # AKS → Redis Cache (セッション/キャッシュ用)
+    - name: "AllowAKSToRedis"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-aks-system CIDR>", "<snet-aks-user CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]
+      destination_ports: ["6380"]
+
+    # AKS → Key Vault PE (証明書・シークレット取得)
+    - name: "AllowAKSToKeyVault"
+      protocols: ["TCP"]
+      source_addresses: ["<snet-aks-system CIDR>", "<snet-aks-user CIDR>"]
+      destination_addresses: ["<snet-pe CIDR>"]
+      destination_ports: ["443"]
+
+  application_rules:
+    # AKS → ACR (コンテナイメージ Pull)
+    # Hub デフォルトの AKS FQDN Tag で mcr.microsoft.com は許可済み
+    # プライベート ACR を使う場合はここで許可
+    - name: "AllowACRPull"
+      source_addresses: ["<snet-aks-system CIDR>", "<snet-aks-user CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "<ACR名>.azurecr.io"
+        - "<ACR名>.japaneast.data.azurecr.io"
+
+    # AKS → 外部 API（マイクロサービスの外部依存先）
+    # 不要であれば削除、必要に応じて FQDN を追加
+    - name: "AllowExternalAPIs"
+      source_addresses: ["<snet-aks-user CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns: ["<連携先 API の FQDN>"]
+
+    # Helm / GitHub Container Registry（CI/CD で OSS チャートを Pull する場合）
+    - name: "AllowHelmRegistries"
+      source_addresses: ["<snet-aks-system CIDR>"]
+      protocols:
+        - type: "Https"
+          port: 443
+      destination_fqdns:
+        - "ghcr.io"
+        - "*.githubusercontent.com"
+        - "charts.helm.sh"
+        - "get.helm.sh"
