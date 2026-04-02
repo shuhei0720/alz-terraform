@@ -2,6 +2,17 @@
 # Log Analytics Workspace
 # =============================================================================
 
+# --- Temporary import: state rm された WORM SA 関連を復旧 (apply 後に削除) ---
+import {
+  to = azurerm_storage_account.law_archive[0]
+  id = "/subscriptions/bec80a1b-7f04-462d-9299-149138ee0e8a/resourceGroups/rg-management-japaneast/providers/Microsoft.Storage/storageAccounts/stlawarchivejapaneast"
+}
+import {
+  to = azurerm_storage_management_policy.law_archive[0]
+  id = "/subscriptions/bec80a1b-7f04-462d-9299-149138ee0e8a/resourceGroups/rg-management-japaneast/providers/Microsoft.Storage/storageAccounts/stlawarchivejapaneast/managementPolicies/default"
+}
+# --- End temporary import ---
+
 resource "azurerm_log_analytics_workspace" "main" {
   provider            = azurerm.management
   name                = "law-management-${var.primary_location}"
