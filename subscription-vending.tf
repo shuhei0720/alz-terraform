@@ -8,6 +8,20 @@
 #
 # YAML を配置するだけで、provider alias や module ブロックの追加は不要。
 # azapi プロバイダーがフルリソース ID により任意のサブスクリプションを操作する。
+
+# -----------------------------------------------------------------------------
+# テンプレート検証用 import ブロック（同一サブスクで切り替えテスト時に必要）
+# 検証完了後に削除してください
+# -----------------------------------------------------------------------------
+import {
+  to = azapi_resource.vending_mg_association_existing["test-aks"]
+  id = "/providers/Microsoft.Management/managementGroups/alz-corp/subscriptions/6c13fa88-55ef-484b-b56f-b049a47b22e1"
+}
+
+import {
+  to = azapi_resource.spoke_amba_rg["test-aks"]
+  id = "/subscriptions/6c13fa88-55ef-484b-b56f-b049a47b22e1/resourceGroups/rg-amba-alerts-japaneast"
+}
 #
 # 自動作成されるリソース:
 #   - リソースグループ
