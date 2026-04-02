@@ -7,7 +7,10 @@
 #   1. このファイルを subscriptions/ にコピー
 #   2. ファイル名を任意の名前に変更（例: public-web.yaml）
 #   3. <...> のプレースホルダーをすべて書き換え
-#   4. terraform plan で確認、terraform apply で適用
+#   4. git add & git commit でコミット
+#   5. git push → Pull Request を作成
+#   6. CI（terraform plan）の結果を確認
+#   7. PR をマージ → CD で自動 apply
 #
 #   ※ provider や module ブロックの追加は不要です（azapi で自動処理）
 #

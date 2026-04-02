@@ -32,8 +32,11 @@
 # 使い方:
 #   1. このファイルを subscriptions/ にコピー
 #   2. ファイル名を変更（例: order-api.yaml, payment-service.yaml）
-#   3. <...> をすべて書き換え
-#   4. terraform plan → apply
+#   3. <...> のプレースホルダーをすべて書き換え
+#   4. git add & git commit でコミット
+#   5. git push → Pull Request を作成
+#   6. CI（terraform plan）の結果を確認
+#   7. PR をマージ → CD で自動 apply
 # =============================================================================
 
 display_name: "<サブスクリプション表示名>"

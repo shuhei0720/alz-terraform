@@ -29,7 +29,10 @@
 #   1. このファイルを subscriptions/ にコピー
 #   2. ファイル名を変更（例: hr-system.yaml, expense-app.yaml）
 #   3. <...> のプレースホルダーをすべて書き換え
-#   4. terraform plan で確認、terraform apply で適用
+#   4. git add & git commit でコミット
+#   5. git push → Pull Request を作成
+#   6. CI（terraform plan）の結果を確認
+#   7. PR をマージ → CD で自動 apply
 # =============================================================================
 
 display_name: "<サブスクリプション表示名>"
